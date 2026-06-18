@@ -56,6 +56,7 @@ import { deepCopy } from '@/utils/ObjectUtil';
 import CozeAdapter from "@/main/ai/Connector/CozeAdapter";
 import FirecrawlEngineAdapter from "@/main/ai/Connector/FirecrawlEngineAdapter";
 import keyboardAutomation from '@/main/native/keyboardAutomation';
+import { ALLOW_SYSTEM_COMMANDS } from '@/main/config/SecurityProfile';
 
 const { exec } = require('child_process');
 const levenshtein = require('fast-levenshtein');
@@ -1637,6 +1638,9 @@ class AIManager {
             }
             case 'openSystemApplication':
             case 'closeSystemApplication': {
+                // Hardened build: system-app configs become raw "cmd" keys that shell-exec
+                // on press. Do not create them unless system commands are explicitly allowed.
+                if (!ALLOW_SYSTEM_COMMANDS) break;
                 if (!newConfigItem.config.actions || newConfigItem.config.actions.length < 1 || newConfigItem.config.actions[0].operationName !== 'cmdLine' || newConfigItem.config.actions[0].operationValue.length < 1) break;
 
                 let cmdLine = newConfigItem.config.actions[0].operationValue;
@@ -1697,6 +1701,8 @@ class AIManager {
                 break;
             }
             case 'cmd': {
+                // Hardened build: the "cmd" key type (arbitrary shell on press) is removed.
+                if (!ALLOW_SYSTEM_COMMANDS) break;
                 if (!newConfigItem.config.actions || newConfigItem.config.actions.length < 1 || newConfigItem.config.actions[0].operationName !== 'cmdLine' || newConfigItem.config.actions[0].operationValue.length < 1) break;
 
                 let cmdLine = newConfigItem.config.actions[0].operationValue;
@@ -1913,6 +1919,14 @@ class AIManager {
                 }
 
                 if (!isLastAction) break;
+
+                if (!ALLOW_SYSTEM_COMMANDS) {
+                    console.warn('AIManager: EXECUTE_CMD blocked by SecurityProfile (ALLOW_SYSTEM_COMMANDS=false). Ignored cmdLine:', actionData && actionData.cmdLine);
+                    this.operatePCContext.actionProcessDone = true;
+                    this.isPendingChatFinish = false;
+                    break;
+                }
+
                 console.log('AIManager: handleUserRequestActions: EXECUTE_CMD Do user action: ' + actionData);
 
                 // eslint-disable-next-line
@@ -1980,6 +1994,12 @@ class AIManager {
 
     _openApplication(applicationPath, execCmd) {
         if (execCmd !== undefined) {
+            // Hardened build: never shell-exec an arbitrary system-app command.
+            // Opening known applications by path (below) still works via shell.openPath.
+            if (!ALLOW_SYSTEM_COMMANDS) {
+                console.warn('AIManager: _openApplication: system-command launch disabled by SecurityProfile. Ignored:', execCmd);
+                return;
+            }
             // eslint-disable-next-line
             exec(execCmd, (error, stdout, stderr) => {
                 if (error) {

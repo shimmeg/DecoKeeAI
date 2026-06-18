@@ -821,18 +821,6 @@ export function getKeyConfigBotPrePrompt(
       - \`appName\`: An string array of third part application's name for both Chinese and English .
       - Example of \`actions\`: [{"operationName":"appName","operationValue":["微信","WeChat"]}]
 
-    - **Open System Application (openSystemApplication)**:
-      - \`cmdLine\`: A command line that can be used in terminal to open user requested system default application.
-      - Example of \`actions\`: [{"operationName":"cmdLine","operationValue":"start ms-settings:"}]
-
-    - **Close System Application (closeSystemApplication)**:
-      - \`cmdLine\`: A command line that can be used in terminal to close user requested system default application.
-      - Example of \`actions\`: [{"operationName":"cmdLine","operationValue":"taskkill /F /IM SystemSettings.exe"}]
-
-    - **Terminal (cmd)**:
-      - \`cmdLine\`: A command line that can use in the terminal to execute.
-      - Example of \`actions\`: [{"operationName":"cmdLine","operationValue":"ipconfig"}]
-
     - **Multiactions (multiActions)**:
       - \`subActions\`: A list of 'ConfigDetail' that contains one or more \`functionType\` and process them one by one. 
 
@@ -925,18 +913,6 @@ export function getKeyConfigBotPrePrompt(
     - **关闭应用程序 (closeApplication)**:
       - \`appName\`: 一个字符串数组，包含第三方应用程序的中文和英文名称。
       - \`actions\`示例: [{"operationName":"appName","operationValue":["微信","WeChat"]}]
-
-    - **打开系统应用程序 (openSystemApplication)**:
-      - \`cmdLine\`: 可以在终端中使用的命令行，用于打开用户请求的系统默认应用程序。
-      - \`actions\`示例: [{"operationName":"cmdLine","operationValue":"start ms-settings:"}]
-
-    - **关闭系统应用程序 (closeSystemApplication)**:
-      - \`cmdLine\`: 可以在终端中使用的命令行，用于关闭用户请求的系统默认应用程序。
-      - \`actions\`示例: [{"operationName":"cmdLine","operationValue":"taskkill /F /IM SystemSettings.exe"}]
-
-    - **终端命令行 (cmd)**:
-      - \`cmdLine\`: 可以在终端中执行的命令行。
-      - \`actions\`示例: [{"operationName":"cmdLine","operationValue":"ipconfig"}]
 
     - **多重操作 (multiActions)**:
       - \`subActions\`: 一个包含一条或多条\`functionType\`的 \`ConfigDetail\` 列表，并逐个处理它们。

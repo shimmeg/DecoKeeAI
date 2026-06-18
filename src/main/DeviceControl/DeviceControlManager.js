@@ -1359,8 +1359,8 @@ function processConfiguredAction(
             break;
         case 'cmd':
             if (action === 1) break;
-
-            processCMDAction(serialNumber, keyCode, keyActions);
+            // Hardened build: the "cmd" key type (arbitrary shell command on press) is disabled.
+            notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
             break;
         case 'homeAssistant':
             if (action === 1) break;
@@ -2488,7 +2488,6 @@ async function processMultiActions(serialNumber, activeConfig, keyCode, idx, dow
                 case 'text':
                 case 'homeAssistant':
                 case 'media':
-                case 'cmd':
                     processActionReturnValue = processConfiguredAction(
                         serialNumber,
                         subAction,
@@ -3048,37 +3047,9 @@ function processAIAssistant(serialNumber, keyCode, action, downtime, eventtime) 
     }
 }
 
-function processCMDAction(serialNumber, keyCode, keyActions) {
-    console.log(
-        'DeviceControlManager: processCMDAction: For device: ' +
-            serialNumber +
-            ' Action: ' +
-            JSON.stringify(keyActions)
-    );
-
-    if (
-        keyActions.length < 1 ||
-        !keyActions[0].type ||
-        keyActions[0].type !== 'text' ||
-        !keyActions[0].value ||
-        keyActions[0].value === ''
-    ) {
-        notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
-        return;
-    }
-
-    const userCMD = keyActions[0].value;
-
-    // 强制关闭进程
-    exec(`${userCMD}`, (err, stdout, stderr) => {
-        if (err) {
-            notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
-            console.error(
-                `DeviceControlManager: processCMDAction: exec error: ${err}`
-            );
-        }
-    });
-}
+// processCMDAction was removed in the hardened build: the "cmd" key type executed
+// arbitrary shell commands on key press (exec(userCMD)). The dispatcher now rejects
+// "cmd" actions with an invalid-action alert instead of executing anything.
 
 function processHomeAssistantFunction(serialNumber, keyCode, keyActions) {
     console.log(

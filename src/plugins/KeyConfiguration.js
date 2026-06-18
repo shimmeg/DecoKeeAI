@@ -455,26 +455,6 @@ export const ALL_MENU_SIDEBAR = [
             }]
         }
       },
-      {
-        childrenName: 'cmd',
-        config: {
-          type: 'cmd',
-          title: {
-            text: '',
-            pos: 'bot',
-            size: 8,
-            color: '#FFFFFF',
-            display: true,
-            style: 'bold|italic|underline',
-            resourceId: 0
-          },
-          icon: '0-52',
-          actions: [{
-            type: 'text',
-            value: ''
-          }]
-        }
-      },
     ]
   },
   // 菜单5
@@ -862,28 +842,6 @@ export const MULTIACTIONS_SIDEBAR = [
               type: 'key',
               value: 'audio_vol_up'
             }]
-        }
-      },
-      {
-        childrenName: 'cmd',
-        config: {
-          type: 'cmd',
-          title: {
-            text: '',
-            pos: 'bot',
-            size: 8,
-            color: '#FFFFFF',
-            display: true,
-            style: 'bold|italic|underline',
-            resourceId: 0
-          },
-          icon: '0-52',
-          gap: 100,
-          pressTime: 100,
-          actions: [{
-            type: 'text',
-            value: ''
-          }]
         }
       },
     ]

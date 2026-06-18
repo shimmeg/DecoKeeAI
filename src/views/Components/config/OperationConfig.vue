@@ -142,17 +142,6 @@
                 >{{ $t('sendingMessage') }}
             </el-checkbox>
         </el-form-item>
-        <!-- 控制台命令 -->
-        <el-form-item v-else-if="newOptionData.childrenName === 'cmd'" :label="$t('cmd') + ':'">
-            <el-input
-                v-model="textarea"
-                :placeholder="$t('cmdLineEnterHint')"
-                maxlength="500"
-                resize="none"
-                show-word-limit
-                type="textarea"
-            />
-        </el-form-item>
         <!-- 切换配置文件 -->
         <template v-else-if="newOptionData.childrenName === 'switchProfile'">
             <el-form-item :label="$t('profile') + ':'">
@@ -243,9 +232,6 @@ export default {
                 }
                 this.textchecked = false;
                 break;
-            case 'cmd':
-                this.textarea = this.newOptionData.config.actions[0].value;
-                break;
             case 'hotkey':
                 if (this.newOptionData.config.actions[0].value === '') {
                     this.hotKeyValue = this.$t('hotkeyMatching');
@@ -294,9 +280,6 @@ export default {
                         return (this.textchecked = true);
                     }
                     this.textchecked = false;
-                    break;
-                case 'cmd':
-                    this.textarea = this.newOptionData.config.actions[0].value;
                     break;
                 case 'open':
                     this.fullPath = this.newOptionData.config.actions[0].value;
