@@ -43,7 +43,7 @@ export function isPortTaken(port) {
                     })
                     .close();
             })
-            .listen(port);
+            .listen(port, '127.0.0.1');
     });
 }
 

@@ -2,6 +2,7 @@ import {app} from "electron";
 import path from "path";
 import {PLUGIN_INSTALL_PATH} from "@/main/managers/resources";
 import {checkPortRange} from "@/utils/Utils";
+import { ENABLE_THIRD_PARTY_PLUGINS } from '@/main/config/SecurityProfile';
 
 export default class {
     constructor(storeManager) {
@@ -25,7 +26,7 @@ export default class {
 
         checkPortRange(20240, 20260).then(results => {
             for (let i = 0; i < results.length; i++) {
-                if (viaPluginPort && pluginServerPort) return;
+                if (viaPluginPort && (pluginServerPort || !ENABLE_THIRD_PARTY_PLUGINS)) return;
                 const result = results[i];
 
                 if (result.taken) {
@@ -37,18 +38,22 @@ export default class {
 
                     storeManager.storeSet('serverPorts.viaPluginPort', viaPluginPort);
 
-                    that.expressServer = expressApp.listen(viaPluginPort, () => {
-                        console.log('HTTPExpress: via plugin server listen on ' + viaPluginPort);
+                    // Hardened build: bind to loopback only (VIA webview connects via localhost).
+                    that.expressServer = expressApp.listen(viaPluginPort, '127.0.0.1', () => {
+                        console.log('HTTPExpress: via plugin server listen on 127.0.0.1:' + viaPluginPort);
                     });
                     continue;
                 }
+
+                // Hardened build: plugin static server is not started when plugins are disabled.
+                if (!ENABLE_THIRD_PARTY_PLUGINS) continue;
 
                 pluginServerPort = result.port;
 
                 storeManager.storeSet('serverPorts.pluginWebPageServerPort', pluginServerPort);
 
-                that.pluginAppServer = pluginExpressApp.listen(pluginServerPort, () => {
-                    console.log('HTTPExpress: pluginExpressApp listen on ' + pluginServerPort);
+                that.pluginAppServer = pluginExpressApp.listen(pluginServerPort, '127.0.0.1', () => {
+                    console.log('HTTPExpress: pluginExpressApp listen on 127.0.0.1:' + pluginServerPort);
                 });
             }
         }).catch(error => {

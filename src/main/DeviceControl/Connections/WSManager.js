@@ -38,6 +38,7 @@ import { parse } from 'url';
 
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { ENABLE_PHONE_COMPANION } from '@/main/config/SecurityProfile';
 
 const WSActiveDeviceMap = new Map();
 const connectionListeners = new Map();
@@ -116,7 +117,11 @@ export default class {
             });
         });
 
-        this.server.listen(20230);
+        if (ENABLE_PHONE_COMPANION) {
+            this.server.listen(20230);
+        } else {
+            console.log('WSManager: phone-companion channel disabled by SecurityProfile; not listening on 20230.');
+        }
 
 
         this.pingActionTask = setInterval(function ping() {

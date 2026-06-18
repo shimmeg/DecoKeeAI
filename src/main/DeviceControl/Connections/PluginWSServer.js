@@ -4,6 +4,7 @@ import { ipcMain } from 'electron';
 import Constants from '@/utils/Constants';
 import {checkPortRange} from "@/utils/Utils";
 import {PROTOCOL_RAW_RES_TYPE} from "@/main/DeviceControl/Connections/ProtocolUtil";
+import { ENABLE_THIRD_PARTY_PLUGINS } from '@/main/config/SecurityProfile';
 
 const {shell} = require('electron');
 const textDecoder = new TextDecoder();
@@ -82,6 +83,10 @@ export default class {
             });
         });
 
+        if (!ENABLE_THIRD_PARTY_PLUGINS) {
+            console.log('PluginWSServer: third-party plugins disabled by SecurityProfile; not listening, no plugin port allocated.');
+            return;
+        }
 
         checkPortRange(20240, 20260).then(results => {
             for (let i = 0; i < results.length; i++) {

@@ -39,6 +39,7 @@ import Constants from '@/utils/Constants';
 import WSManager from '@/main/DeviceControl/Connections/WSManager';
 import PluginWSServer from '@/main/DeviceControl/Connections/PluginWSServer';
 import PluginAdapter, { PLUGIN_TYPE } from '@/main/DeviceControl/Connections/PluginAdapter';
+import { ENABLE_THIRD_PARTY_PLUGINS } from '@/main/config/SecurityProfile';
 import {getDeltaList} from "@/utils/Utils";
 import AIManager from "@/main/ai/AIManager";
 import {PROTOCOL_OP_CODE, PROTOCOL_RAW_RES_TYPE} from "@/main/DeviceControl/Connections/ProtocolUtil";
@@ -3433,6 +3434,10 @@ function sendRawResourceToDeviceKey(serialNumber, resourceType, resourceData, ke
 }
 
 function loadAllPluginHandler(isDelete, pluginId) {
+    if (!ENABLE_THIRD_PARTY_PLUGINS) {
+        // Hardened build: third-party plugins are not loaded (no plugin exec / web windows).
+        return;
+    }
     const currentPluginInfo = appManager.storeManager.storeGet('plugin.streamDeck');
     if (!currentPluginInfo || currentPluginInfo.length === 0) {
         pluginHandlerMap.forEach((pluginAdapter, pluginId) => {
