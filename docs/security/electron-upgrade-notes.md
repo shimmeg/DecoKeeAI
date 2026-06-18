@@ -260,7 +260,7 @@ Native validation conclusion after isolation: the Electron 42 macOS arm64 instal
 
 Task 3.4 was partially attempted after the `robotjs` isolation.
 
-- App Startup: partially passed. Before the builder override, `npm run buildapp:mac` compiled renderer/main bundles and reached packaging, but the old nested Electron Builder path failed on missing `/usr/bin/python` after signing/unsigned packaging. After adding the top-level `electron-builder` override, `npm run buildapp:mac` used `electron-builder@26.15.3`, signed `dist_electron/mac-arm64/DecoKeeAI.app`, skipped notarization, and completed zip/DMG packaging successfully. `open -a dist_electron/mac-arm64/DecoKeeAI.app` starts the packaged app; `pgrep` shows the main process plus helper/renderer processes; Accessibility reports one `DecoKeeAI` window; LaunchServices reports `DecoKeeAI` as a visible process. User visual check confirmed the main window is visible and Settings opens. User observed one missing icon and could not close Settings from the UI. Logs show a quit/restart cycle occurred and the packaged app reopened with a new PID. Logs also show startup update checking, `UpgradeInfoDialog show`, Home Assistant `Invalid URL: ws/api/websocket` without configured HA URL, and `GeneralAIManager` `mdls` errors for an empty recent-app path.
+- App Startup: partially passed. Before the builder override, `npm run buildapp:mac` compiled renderer/main bundles and reached packaging, but the old nested Electron Builder path failed on missing `/usr/bin/python` after signing/unsigned packaging. After adding the top-level `electron-builder` override, `npm run buildapp:mac` used `electron-builder@26.15.3`, signed `dist_electron/mac-arm64/DecoKeeAI.app`, skipped notarization, and completed zip/DMG packaging successfully. `open -a dist_electron/mac-arm64/DecoKeeAI.app` starts the packaged app; `pgrep` shows the main process plus helper/renderer processes; Accessibility reports one `DecoKeeAI` window; LaunchServices reports `DecoKeeAI` as a visible process. User visual check confirmed the main window is visible and Settings opens. User observed that menu icons are not visible globally, some menu labels remain in Chinese, and Settings could not be closed from the UI. Logs show a quit/restart cycle occurred and the packaged app reopened with a new PID. Logs also show startup update checking, `UpgradeInfoDialog show`, Home Assistant `Invalid URL: ws/api/websocket` without configured HA URL, and `GeneralAIManager` `mdls` errors for an empty recent-app path.
 - Device And HID: native module load smoke passed for `node-hid`; physical DECOKEE Quake connection and key press flow were not run because hardware is required. Configured text/hotkey actions are known-disabled while `keyboardAutomation` has no supported backend.
 - AI And STT/TTS: not run. Requires app startup plus provider configuration/API keys. AI output-to-key-input automatic paste is known-disabled while `keyboardAutomation` has no supported backend.
 - Plugins: not run dynamically. Electron main/renderer bundle compilation passed, and `active-win`/`uiohook-napi` native load smoke passed.
@@ -272,7 +272,7 @@ Static guard status:
 
 - `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
 
-Smoke validation conclusion: the install/rebuild blocker and macOS packaging blocker are cleared for this host. Basic packaged app startup/restart smoke passes, with follow-up UI issues for one missing icon and Settings close behavior. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, and keyboard automation remains disabled until a supported `robotjs` replacement is chosen.
+Smoke validation conclusion: the install/rebuild blocker and macOS packaging blocker are cleared for this host. Basic packaged app startup/restart smoke passes, with follow-up UI issues for globally missing menu icons, Chinese menu labels, and Settings close behavior. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, and keyboard automation remains disabled until a supported `robotjs` replacement is chosen.
 
 ## Breaking Changes Relevant To This App
 
@@ -408,7 +408,7 @@ Official web references were checked for Electron release status and breaking ch
 ## Next Actions
 
 1. Choose the permanent keyboard automation strategy before shipping: replace `robotjs` with a supported backend, or keep the disabled adapter behind an explicit product flag with UI/feature handling.
-2. Investigate the missing icon in the main window and the Settings close behavior observed during packaged app smoke.
+2. Investigate globally missing menu icons, Chinese menu labels, and the Settings close behavior observed during packaged app smoke.
 3. Decide whether to keep the top-level `electron-builder` override long-term or replace `vue-cli-plugin-electron-builder` with a maintained packaging path.
 4. Run hardware/API dependent smoke: DECOKEE Quake HID, configured hotkey/text actions, AI/STT/TTS, plugin flows, local server/phone companion flows.
 5. Only after the runtime opens cleanly and the temporary keyboard automation decision is accepted, continue to Task 4: secure BrowserWindow factory.
