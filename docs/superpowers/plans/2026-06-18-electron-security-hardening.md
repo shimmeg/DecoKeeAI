@@ -121,9 +121,11 @@ This guard is intentionally red at first. Later tasks must reduce violations and
 - Consumes: Task 1 smoke checklist.
 - Produces: validated target Electron version and native-module compatibility notes.
 
-- [ ] **Step 1: Confirm target Electron line**
+- [x] **Step 1: Confirm target Electron line**
 
 Use official Electron release notes and breaking changes. Record target version, Chromium, Node.js, and minimum OS versions in `docs/security/electron-upgrade-notes.md`.
+
+Recorded initial target and blockers in `docs/security/electron-upgrade-notes.md`: Electron 42 is the immediate spike target as of 2026-06-18, with a planned retarget check for Electron 43 once it is stable.
 
 - [ ] **Step 2: Update Electron dependency in an isolated branch**
 
