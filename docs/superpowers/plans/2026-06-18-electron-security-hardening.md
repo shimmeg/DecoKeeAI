@@ -31,6 +31,8 @@
 - `src/main/DeviceControl/Connections/`: authenticate local WebSocket servers and harden protocol parsing.
 - `src/main/managers/resources.js`: plugin ZIP/path containment and signed plugin handling.
 - `src/views/Components/UpgradeInfoDialog.vue` and `src/background.js`: remove renderer-side OTA apply path and move update apply into verified main-process flow.
+- `src/locales/`: complete English and Russian locale catalogs, plus migration of user-facing hardcoded strings out of components and main-process windows.
+- `scripts/i18n/`: locale coverage and hardcoded-copy guard scripts.
 
 ## Task 1: Phase 0 Baseline Documentation
 
@@ -453,7 +455,97 @@ Prefer integrity-protected packaged resources and avoid `requireAdministrator` u
 
 Use dependency audit output as a release gate.
 
-## Task 15: Final Security Verification
+## Task 15: Complete English And Russian Localization
+
+**Files:**
+- Create: `src/locales/ru.json`
+- Create: `scripts/i18n/check-locales.mjs`
+- Modify: `src/locales/en.json`
+- Modify: `src/locales/zh.json` if Chinese remains as an optional locale
+- Modify: `src/plugins/i18n.js`
+- Modify: `src/main/managers/store.js`
+- Modify: renderer Vue components under `src/views/**`
+- Modify: main-process user-facing copy under `src/main/**`
+- Modify: `package.json`
+- Modify: `docs/security/electron-upgrade-notes.md`
+
+**Interfaces:**
+- Consumes: current Vue i18n setup, Settings language selector, Electron window/menu/dialog labels, AI assistant defaults, and Task 3 smoke findings.
+- Produces: complete English and Russian user-facing UI with automated locale coverage checks.
+
+- [ ] **Step 1: Add a failing locale coverage guard**
+
+Create `scripts/i18n/check-locales.mjs` that:
+- Parses `src/locales/en.json` and `src/locales/ru.json`.
+- Recursively compares key paths and fails when either locale is missing a key.
+- Scans `src/**` for Chinese user-facing strings and hardcoded English UI labels, excluding `src/locales/**`, `public/plugin/VIA/**`, generated bundles, logs, comments, and test fixtures.
+- Prints the missing key path or source file/line for each finding.
+
+Add to `package.json`:
+
+```json
+"i18n:check": "node scripts/i18n/check-locales.mjs"
+```
+
+Run: `npm run i18n:check`
+Expected: FAIL before the migration lists every missing Russian key and every hardcoded user-facing string found by the guard.
+
+- [ ] **Step 2: Complete the English catalog**
+
+Move all user-facing English strings into `src/locales/en.json`, including:
+- Main window action/category labels.
+- Settings labels, hints, confirmation dialogs, update dialogs, and plugin install/delete messages.
+- AI assistant greeting, empty states, history/config/send labels, provider/model setting labels, and default prompt labels shown to users.
+- Tray, menu, BrowserWindow title, notification, error, and permission copy emitted from the main process.
+- Device/profile/action configuration labels.
+
+Run: `npm run i18n:check`
+Expected: FAIL only for missing Russian translations until `src/locales/ru.json` is complete.
+
+- [ ] **Step 3: Add the Russian catalog**
+
+Create `src/locales/ru.json` with the same key tree as `src/locales/en.json`. Use product-quality Russian copy for user-facing text; keep product names, protocol names, model/provider names, and file extensions untranslated when they are proper nouns or technical identifiers.
+
+Run: `npm run i18n:check`
+Expected: PASS for key coverage and hardcoded-copy checks.
+
+- [ ] **Step 4: Wire language selection**
+
+Update the Settings language selector and locale initialization so supported languages are explicitly:
+- `en`: English
+- `ru`: Русский
+
+Default fresh installs to English unless the saved user preference is `ru`. Existing saved preferences must not be overwritten. If `zh` remains available, it must be treated as optional and must not be the fallback locale.
+
+Run: `npm run i18n:check`
+Expected: PASS.
+
+- [ ] **Step 5: Smoke both locales in the packaged app**
+
+Build and launch the packaged app:
+
+```bash
+npm run buildapp:mac
+```
+
+For both `en` and `ru`:
+- Open the main window.
+- Open Settings.
+- Open AI assistant.
+- Open action configuration and icon selection.
+- Confirm visible text is translated and no Chinese text remains in user-facing UI.
+- Confirm labels fit inside buttons, tabs, menus, and compact panels at the supported desktop window sizes.
+
+Expected: English and Russian UI smoke passes; any hardware/API-key dependent screens are documented with the exact blocker.
+
+- [ ] **Step 6: Record localization status**
+
+Update `docs/security/electron-upgrade-notes.md` with:
+- Locale guard command and result.
+- Packaged smoke result for English and Russian.
+- Any intentionally untranslated product names or technical identifiers.
+
+## Task 16: Final Security Verification
 
 **Files:**
 - Modify: `docs/security/security-migration-baseline.md`

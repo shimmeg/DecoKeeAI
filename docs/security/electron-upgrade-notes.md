@@ -420,7 +420,7 @@ Official web references were checked for Electron release status and breaking ch
 ## Next Actions
 
 1. Choose the permanent keyboard automation strategy before shipping: replace `robotjs` with a supported backend, or keep the disabled adapter behind an explicit product flag with UI/feature handling.
-2. Finish broader i18n cleanup for assistant/default prompt strings and any remaining non-English labels outside the main/Settings smoke path.
+2. Complete Task 15 localization: full English and Russian UI coverage, Russian locale catalog, language selector support, and an automated locale/hardcoded-copy guard.
 3. Decide whether to keep the top-level `electron-builder` override long-term or replace `vue-cli-plugin-electron-builder` with a maintained packaging path.
 4. Run hardware/API dependent smoke: DECOKEE Quake HID, configured hotkey/text actions, AI/STT/TTS, plugin flows, local server/phone companion flows.
 5. Only after the runtime opens cleanly and the temporary keyboard automation decision is accepted, continue to Task 4: secure BrowserWindow factory.
