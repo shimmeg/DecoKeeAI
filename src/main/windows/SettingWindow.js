@@ -19,6 +19,13 @@ class SettingWindow {
             this.win.loadURL('app://./index.html')
         }
 
+        this.win.on('close', event => {
+            event.preventDefault();
+            if (that.win) {
+                that.win.hide();
+            }
+        });
+
         this.win.on('closed', () => {
             that.win = null
             console.log('SettingWindow windows closed')

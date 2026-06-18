@@ -20,7 +20,8 @@
     "rebuild": "electron-rebuild",
     "updatefiles": "electron-rebuild",
     "rebuildmodule": "electron-rebuild --force",
-    "security:runtime-blockers": "node scripts/security/check-electron-runtime-blockers.mjs"
+    "security:runtime-blockers": "node scripts/security/check-electron-runtime-blockers.mjs",
+    "security:resource-paths": "node scripts/security/check-electron-resource-paths.mjs"
   },
   "author": {
     "name": "DECOKEE AI",

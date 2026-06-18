@@ -20,11 +20,7 @@ class StoreManager {
             const userConfigLocale = that.store.get('system.locale');
             console.log('StoreManager: constructor: systemLocale: ', systemLocale, ' userConfigLocale: ', userConfigLocale);
             if (!userConfigLocale) {
-                if (systemLocale === 'zh-CN') {
-                    that.store.set('system.locale', 'zh')
-                } else {
-                    that.store.set('system.locale', 'en')
-                }
+                that.store.set('system.locale', 'en')
             }
 
             const locale = that.storeGet('system.locale');

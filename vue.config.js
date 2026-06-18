@@ -68,8 +68,8 @@ module.exports = {
         },
         // i18n config
         i18n: {
-            locale: 'zh',
-            fallbackLocale: 'zh',
+            locale: 'en',
+            fallbackLocale: 'en',
             localeDir: 'locales',
             enableInSFC: false
         }

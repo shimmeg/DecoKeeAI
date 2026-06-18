@@ -59,6 +59,12 @@ for (const sourceFile of sourceFiles) {
   }
 }
 
+const activeWinMain = path.join(rootDir, 'modules/active-win/main');
+const activeWinMainMode = fs.statSync(activeWinMain).mode;
+if ((activeWinMainMode & 0o111) === 0) {
+  fail('modules/active-win/main is not executable; packaged active-win spawn fails with EACCES');
+}
+
 if (failures.length > 0) {
   console.error(`Electron runtime blocker guard failed with ${failures.length} finding(s):`);
   for (const failure of failures) {

@@ -258,11 +258,15 @@ Native validation conclusion after isolation: the Electron 42 macOS arm64 instal
 
 ## Smoke Checklist Status
 
-Task 3.4 was partially attempted after the `robotjs` isolation.
+Task 3.4 was partially attempted after the `robotjs` isolation and repeated after the packaged UI smoke fixes.
 
-- App Startup: partially passed. Before the builder override, `npm run buildapp:mac` compiled renderer/main bundles and reached packaging, but the old nested Electron Builder path failed on missing `/usr/bin/python` after signing/unsigned packaging. After adding the top-level `electron-builder` override, `npm run buildapp:mac` used `electron-builder@26.15.3`, signed `dist_electron/mac-arm64/DecoKeeAI.app`, skipped notarization, and completed zip/DMG packaging successfully. `open -a dist_electron/mac-arm64/DecoKeeAI.app` starts the packaged app; `pgrep` shows the main process plus helper/renderer processes; Accessibility reports one `DecoKeeAI` window; LaunchServices reports `DecoKeeAI` as a visible process. User visual check confirmed the main window is visible and Settings opens. User observed that menu icons are not visible globally, some menu labels remain in Chinese, and Settings could not be closed from the UI. Logs show a quit/restart cycle occurred and the packaged app reopened with a new PID. Logs also show startup update checking, `UpgradeInfoDialog show`, Home Assistant `Invalid URL: ws/api/websocket` without configured HA URL, and `GeneralAIManager` `mdls` errors for an empty recent-app path.
+- App Startup: passed for the available macOS arm64 packaged-app path on this host. `npm run buildapp:mac` uses `electron-builder@26.15.3`, signs `dist_electron/mac-arm64/DecoKeeAI.app`, skips notarization, and completes zip/DMG packaging. The rebuilt packaged app starts with Electron `42.4.1` / Node `24.16.0`. Direct launch with `--remote-debugging-port=9223` exposed the main renderer, Settings, AI assistant, icon import, and helper targets through DevTools. Accessibility showed only the main `DecoKeeAI` window after Settings was closed.
+- Packaged resource paths: passed after adding `src/main/managers/resourcePaths.js` and `npm run security:resource-paths`. CDP smoke confirmed main-window built-in icons load from `Contents/Resources/app/icon/...` with `complete: true` and nonzero natural dimensions. Audio tone URLs also resolve under `Contents/Resources/app/tone/...`. No image paths pointed at the old invalid `Contents/MacOS/resources/app/...` location.
+- Packaged `active-win`: passed after making `modules/active-win/main` executable and extending `npm run security:runtime-blockers` to guard the mode bit. The rebuilt bundle contains `Contents/Resources/app/node_modules/active-win/main` as `-rwxr-xr-x`; the current packaged smoke log has no `EACCES` or `active-win/main` failures.
+- Locale/UI text: improved. Fresh default and fallback locale are now English in the renderer i18n setup and store initialization. CDP smoke shows the main window and Settings text in English. A Chinese AI assistant greeting still remains in a separate assistant/default prompt path and is deferred to broader i18n cleanup.
+- Settings close behavior: passed for the available automation path. `SettingWindow` now hides on normal `close`; CDP `window.close()` against the Settings target left the renderer target alive, and Accessibility reported only the main `DecoKeeAI` window afterward.
 - Device And HID: native module load smoke passed for `node-hid`; physical DECOKEE Quake connection and key press flow were not run because hardware is required. Configured text/hotkey actions are known-disabled while `keyboardAutomation` has no supported backend.
-- AI And STT/TTS: not run. Requires app startup plus provider configuration/API keys. AI output-to-key-input automatic paste is known-disabled while `keyboardAutomation` has no supported backend.
+- AI And STT/TTS: not run. Requires provider configuration/API keys. AI output-to-key-input automatic paste is known-disabled while `keyboardAutomation` has no supported backend.
 - Plugins: not run dynamically. Electron main/renderer bundle compilation passed, and `active-win`/`uiohook-napi` native load smoke passed.
 - OTA: not run. Signed-update flow does not exist yet; covered by later OTA hardening task.
 - Local Servers And Phone Companion: not run. Requires app startup and pairing flow.
@@ -272,7 +276,7 @@ Static guard status:
 
 - `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
 
-Smoke validation conclusion: the install/rebuild blocker and macOS packaging blocker are cleared for this host. Basic packaged app startup/restart smoke passes, with follow-up UI issues for globally missing menu icons, Chinese menu labels, and Settings close behavior. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, and keyboard automation remains disabled until a supported `robotjs` replacement is chosen.
+Smoke validation conclusion: the install/rebuild blocker, macOS packaging blocker, packaged icon/resource bug, packaged `active-win` `EACCES` bug, fresh English default locale, and Settings close behavior are cleared for this host. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, and keyboard automation remains disabled until a supported `robotjs` replacement is chosen.
 
 ## Breaking Changes Relevant To This App
 
@@ -373,6 +377,7 @@ Local commands:
 - `npm ci`
 - `npm run rebuild`
 - `npm run security:runtime-blockers`
+- `npm run security:resource-paths`
 - `node -e "const mods=['node-hid','uiohook-napi','active-win','sharp']; for (const mod of mods) { const value=require(mod); console.log(mod + ': ok', typeof value); }"`
 - `npm exec electron -- --version`
 - `npm run build`
@@ -401,14 +406,21 @@ Local commands:
 - `osascript -e 'tell application "DecoKeeAI" to activate' ...`
 - `lsappinfo visibleProcessList`
 - `lsappinfo info -only name,pid,visible,frontASN DecoKeeAI`
+- `chmod +x modules/active-win/main`
+- `ls -l dist_electron/mac-arm64/DecoKeeAI.app/Contents/Resources/app/node_modules/active-win/main`
+- `file dist_electron/mac-arm64/DecoKeeAI.app/Contents/Resources/app/node_modules/active-win/main`
+- `/Users/anton/.codex/worktrees/3043/DecoKeeAI/dist_electron/mac-arm64/DecoKeeAI.app/Contents/MacOS/DecoKeeAI --remote-debugging-port=9223`
+- `node` CDP scripts against `http://127.0.0.1:9223/json/list` to inspect renderer text, image load status, and Settings close behavior
+- `osascript -e 'tell application "System Events" to tell process "DecoKeeAI" to get name of every window'`
+- `rg -n "EACCES|active-win/main" "$HOME/Library/Application Support/decokee-ai/logs/2026-6-18.log"`
 - `node scripts/security/check-electron-security-baseline.mjs`
 
-Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. `npm run build` is not an Electron build smoke in this project and fails on existing browser-webpack Node core fallback errors. Before the builder override, `npm run buildapp:mac` compiled renderer/main bundles and failed in the old builder packaging path because `/usr/bin/python` is absent on this host. After the top-level `electron-builder` override, `npm run buildapp:mac` completed successfully with `electron-builder@26.15.3` and produced `dist_electron/mac-arm64/DecoKeeAI.app`, `dist_electron/DecoKeeAI-0.0.61-arm64-mac.zip`, and `dist_electron/DecoKeeAI-0.0.61-arm64.dmg`. Packaged app launch/restart smoke was performed on macOS with user visual confirmation. Hardware, AI/API, plugin, OTA, and phone companion flows were not performed.
+Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. `npm run build` is not an Electron build smoke in this project and fails on existing browser-webpack Node core fallback errors. Before the builder override, `npm run buildapp:mac` compiled renderer/main bundles and failed in the old builder packaging path because `/usr/bin/python` is absent on this host. After the top-level `electron-builder` override, `npm run buildapp:mac` completed successfully with `electron-builder@26.15.3` and produced `dist_electron/mac-arm64/DecoKeeAI.app`, `dist_electron/DecoKeeAI-0.0.61-arm64-mac.zip`, and `dist_electron/DecoKeeAI-0.0.61-arm64.dmg`. Packaged app launch/restart smoke was performed on macOS with user visual confirmation and CDP checks. Follow-up UI smoke fixed the packaged resource path issue, the packaged `active-win` executable bit, fresh English defaults, and Settings close behavior. Hardware, AI/API, plugin, OTA, and phone companion flows were not performed.
 
 ## Next Actions
 
 1. Choose the permanent keyboard automation strategy before shipping: replace `robotjs` with a supported backend, or keep the disabled adapter behind an explicit product flag with UI/feature handling.
-2. Investigate globally missing menu icons, Chinese menu labels, and the Settings close behavior observed during packaged app smoke.
+2. Finish broader i18n cleanup for assistant/default prompt strings and any remaining non-English labels outside the main/Settings smoke path.
 3. Decide whether to keep the top-level `electron-builder` override long-term or replace `vue-cli-plugin-electron-builder` with a maintained packaging path.
 4. Run hardware/API dependent smoke: DECOKEE Quake HID, configured hotkey/text actions, AI/STT/TTS, plugin flows, local server/phone companion flows.
 5. Only after the runtime opens cleanly and the temporary keyboard automation decision is accepted, continue to Task 4: secure BrowserWindow factory.

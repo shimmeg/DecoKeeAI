@@ -11,9 +11,12 @@ const shelljs = require('shelljs');
 const sharp = require('sharp');
 const { DOMParser, XMLSerializer } = require('xmldom')
 const { fork } = require('child_process');
+const {
+    resolveAppResourcePath,
+    resolveNodeModuleResourcePath,
+} = require('./resourcePaths');
 
 const DEFAULT_RESOURCE_PATH = '/resources/app/assets/';
-const NODE_MODULES_PATH = '/resources/app/node_modules/';
 const EXTRA_RESOURCE_PATH = '/resources/app/assets/resource/';
 const RESOURCE_CONFIG_FILE = DEFAULT_RESOURCE_PATH + 'resources.conf';
 
@@ -1240,29 +1243,22 @@ class ResourcesManager {
     }
 
     getRelatedSrcPath(resourcePath, fileAccessPath = false) {
-        if (!resourcePath.startsWith('@/')) {
-            return resourcePath;
-        }
-
-        const newResPath = resourcePath.replace('@/', '');
-
-        if (process.env.WEBPACK_DEV_SERVER_URL) {
-            return (fileAccessPath ? '' : 'file://') + path.join(this.defaultInstallPath, '/../../../../public/', newResPath);
-        } else {
-            return (fileAccessPath ? '' : 'file://') + path.join(this.defaultInstallPath, '..', DEFAULT_RESOURCE_PATH, '..', newResPath);
-        }
+        return resolveAppResourcePath({
+            resourcePath,
+            defaultInstallPath: this.defaultInstallPath,
+            resourcesPath: process.resourcesPath,
+            isDev: Boolean(process.env.WEBPACK_DEV_SERVER_URL),
+            fileAccessPath,
+        });
     }
 
     getNodeModuleResourceRelatedPath(pathInfo) {
-        if (!pathInfo.startsWith('@')) {
-            return pathInfo;
-        }
-
-        if (process.env.WEBPACK_DEV_SERVER_URL) {
-            return 'file://' + path.join(this.defaultInstallPath, '/../../../../node_modules/', pathInfo);
-        } else {
-            return 'file://' + path.join(this.defaultInstallPath, '..', NODE_MODULES_PATH, pathInfo);
-        }
+        return resolveNodeModuleResourcePath({
+            moduleResourcePath: pathInfo,
+            defaultInstallPath: this.defaultInstallPath,
+            resourcesPath: process.resourcesPath,
+            isDev: Boolean(process.env.WEBPACK_DEV_SERVER_URL),
+        });
     }
 
     async getMDIIconResIdByName(mdiIconName) {
