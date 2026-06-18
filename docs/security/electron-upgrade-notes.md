@@ -35,7 +35,8 @@ Current repository state:
 
 - `package.json` devDependency pins `electron` to `23.0.0`.
 - Electron release schedule marks Electron `23.0.0` stable on 2023-02-07, EOL on 2023-08-15, with Chromium M110 and Node.js `18.12.1`.
-- No package manager lockfile is present: no `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, or `pnpm-lock.yaml`.
+- The upstream repository had no package manager lockfile and `.gitignore` ignored `package-lock.json`.
+- A baseline `package-lock.json` has now been generated with install scripts disabled and committed as an explicit migration artifact.
 - Local inspection environment: Node.js `v26.3.0`, npm `11.16.0`.
 - `npm run security:baseline` is intentionally red from the Phase 0 guard and must remain red until hardening tasks remove specific findings.
 
@@ -61,6 +62,42 @@ Electron build tooling requiring review:
 - `vue-cli-plugin-electron-builder@^2.1.1`
 - `electron-rebuild@^3.2.9`
 - `electron-builder install-app-deps` in `postinstall` and `postuninstall`
+
+## Lockfile Baseline
+
+Generated command:
+
+```bash
+npm install --package-lock-only --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never
+```
+
+Result:
+
+- `package-lock.json` lockfileVersion is `3`.
+- Lockfile contains `2464` package entries.
+- All remote `resolved` URLs use `registry.npmjs.org`; local `registry.npmmirror.com` configuration was deliberately excluded from the committed lockfile.
+- `node_modules` was not created.
+- Install/lifecycle scripts were disabled for generation.
+- npm still reported `92 vulnerabilities` from audit metadata: `7 low`, `47 moderate`, `34 high`, `4 critical`.
+- npm reported `EBADENGINE` for `@achrinza/node-ipc@9.2.10` and `@achrinza/node-ipc@9.2.2` under the local Node.js `v26.3.0` runtime.
+
+Packages marked with `hasInstallScript` in the lockfile:
+
+- root package `.`
+- `modules/active-win`
+- `modules/robotjs`
+- `node_modules/electron`
+- `node_modules/targetpractice/node_modules/electron`
+- `node_modules/node-hid`
+- `node_modules/sharp`
+- `node_modules/uiohook-napi`
+- `node_modules/lzma-native`
+- `node_modules/fsevents`
+- `node_modules/watchpack-chokidar2/node_modules/fsevents`
+- `node_modules/yorkie`
+- six legacy `core-js` install-script locations under Babel/test tooling
+
+Do not run a normal `npm install` or `npm ci` yet. The next migration step must remove or neutralize hardcoded Electron 23/ABI 113 rebuild scripts before install scripts are allowed to run.
 
 ## Breaking Changes Relevant To This App
 
@@ -147,13 +184,13 @@ Read-only local commands:
 - `sed -n '1,220p' modules/active-win/package.json`
 - `sed -n '1,220p' modules/font-carrier/package.json`
 - `rg --files -g 'package-lock.json' -g 'yarn.lock' -g 'pnpm-lock.yaml' -g 'npm-shrinkwrap.json'`
+- `npm install --package-lock-only --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never`
 
-Official web references were checked for Electron release status and breaking changes. No package install, build, application run, or network request from the application was performed.
+Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm only for lockfile generation. No full package install, lifecycle-script execution, native rebuild, application build, application run, or network request from the application was performed.
 
 ## Next Actions
 
-1. Generate a lockfile-only baseline with install scripts disabled.
-2. Remove or neutralize hardcoded Electron 23/ABI 113 rebuild scripts.
-3. Create the first actual dependency bump commit for Electron 42 and build tooling.
-4. Rebuild native modules and record exact failures by platform.
-5. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.
+1. Remove or neutralize hardcoded Electron 23/ABI 113 rebuild scripts.
+2. Create the first actual dependency bump commit for Electron 42 and build tooling.
+3. Rebuild native modules and record exact failures by platform.
+4. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.
