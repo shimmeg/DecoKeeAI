@@ -6,9 +6,9 @@ Baseline commit: `593a3a2`
 
 ## Scope
 
-This is a notes-only runtime spike. It records the target Electron line, current build/runtime blockers, and the migration order. It does not change dependencies, build configuration, native modules, or security preferences.
+This file records the runtime spike: target Electron line, current build/runtime blockers, dependency changes, native-module validation results, and smoke-check status. It does not change Electron security preferences.
 
-No `npm install`, native rebuild, application build, or dev server was run for this note.
+The initial version of this note was docs-only. Later updates in this branch include dependency installation and native rebuild diagnostics. No application build, dev server, or application run has been performed.
 
 ## Target Electron Line
 
@@ -125,6 +125,95 @@ Packages marked with `hasInstallScript` in the lockfile:
 
 Do not treat a normal `npm install` or `npm ci` as validated yet. The hardcoded Electron 23/ABI 113 scripts have been removed, but native module compatibility still requires the Electron 42 dependency bump and platform rebuild checks.
 
+## Native Module Validation Results
+
+Environment:
+
+- Platform: macOS `darwin-arm64`
+- Local Node.js: `v26.3.0`
+- npm: `11.16.0`
+- Electron target: `42.4.1`
+
+Full install result:
+
+```bash
+npm ci --registry=https://registry.npmjs.org/ --replace-registry-host=never
+```
+
+Result: failed before target native-module validation.
+
+- Failing package: `node_modules/targetpractice/node_modules/electron`
+- Command: `node install.js`
+- Attempted artifact: `electron-v1.8.8-darwin-arm64.zip`
+- Error: `GET https://npmmirror.com/mirrors/electron/1.8.8/electron-v1.8.8-darwin-arm64.zip returned 404`
+- Root cause evidence: `modules/robotjs` has devDependency `targetpractice@0.0.7`; `targetpractice` depends on `electron@^1.7.11`; lockfile resolves that nested Electron to `1.8.8`, which has an install script and no usable `darwin-arm64` artifact in this environment.
+
+Scripts-disabled install result:
+
+```bash
+npm ci --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never
+```
+
+Result: succeeded.
+
+- Installed packages: `2575`
+- Audit summary: `91 vulnerabilities` (`7 low`, `48 moderate`, `32 high`, `4 critical`)
+- Lifecycle scripts were skipped, so this is not a normal install validation.
+
+Electron binary check:
+
+```bash
+npm exec electron -- --version
+```
+
+Result: succeeded after downloading the Electron binary; output was `v42.4.1`.
+
+Full native rebuild:
+
+```bash
+npm run rebuild
+```
+
+Result: failed.
+
+- `electron-rebuild` discovered: `modules/active-win`, `node-hid`, `modules/robotjs`, `uiohook-napi`
+- Failing module: `modules/robotjs`
+- Failure class: C++ compile failure against Electron 42 / Node 24 headers
+- Primary error pattern: `nan` calls V8 APIs that now require `ExternalPointerTypeTag`, for example `v8::External::Value(...)` and `v8::External::New(...)`
+- Secondary compile errors appear after the `nan` failures while processing macOS Cocoa/Foundation headers.
+- Runtime load result after failed rebuild: `require('robotjs')` fails with `Cannot find module './build/Release/robotjs.node'`.
+
+Targeted rebuild results:
+
+| Module | Result | Notes |
+| --- | --- | --- |
+| `node-hid@2.1.2` | Pass | `electron-rebuild -f -o node-hid` completed; `require('node-hid')` loaded. |
+| `uiohook-napi@1.5.5` | Pass | `electron-rebuild -f -o uiohook-napi` completed; `require('uiohook-napi')` loaded. |
+| `active-win@8.1.1` | Pass | `electron-rebuild -f -o active-win` completed; `require('active-win')` loaded. |
+| `sharp@0.33.5` | Pass | Not selected by `electron-rebuild`; `require('sharp')` loaded and reported `sharp.versions`. |
+| `robotjs@0.6.0` | Fail | Fails to compile via `nan`/V8 API incompatibility and does not load. |
+| `font-carrier@0.3.1` | Not native | Still a supply-chain concern because it pulls stale XML/font tooling, including old `xmldom` in its local dependency graph. |
+
+Native validation conclusion: Electron 42 runtime migration is blocked by `robotjs`. Full install is also blocked on macOS arm64 by `robotjs` devDependency `targetpractice` pulling nested `electron@1.8.8`.
+
+## Smoke Checklist Status
+
+Task 3.4 was attempted after native validation, but full smoke testing is blocked.
+
+- App Startup: not run. The runtime cannot be considered launch-ready while `robotjs` native rebuild fails.
+- Device And HID: not run. Requires app startup and DECOKEE Quake hardware.
+- AI And STT/TTS: not run. Requires app startup plus provider configuration/API keys.
+- Plugins: not run. Requires app startup and plugin runtime.
+- OTA: not run. Signed-update flow does not exist yet; covered by later OTA hardening task.
+- Local Servers And Phone Companion: not run. Requires app startup and pairing flow.
+- Privacy And Secrets: not run dynamically. Static baseline still shows known insecure storage/logging issues.
+
+Static guard status:
+
+- `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
+
+Smoke validation conclusion: do not proceed to BrowserWindow/preload hardening as if the runtime is healthy. Resolve or replace `robotjs`, then rerun normal `npm ci`, `npm run rebuild`, and the manual smoke checklist.
+
 ## Breaking Changes Relevant To This App
 
 Electron 42:
@@ -200,7 +289,7 @@ Highest-risk blockers:
 
 ## Commands Run For This Note
 
-Read-only local commands:
+Local commands:
 
 - `git checkout -b codex/electron-runtime-spike`
 - `git status --short --branch`
@@ -211,11 +300,20 @@ Read-only local commands:
 - `sed -n '1,220p' modules/font-carrier/package.json`
 - `rg --files -g 'package-lock.json' -g 'yarn.lock' -g 'pnpm-lock.yaml' -g 'npm-shrinkwrap.json'`
 - `npm install --package-lock-only --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never`
+- `npm ci --registry=https://registry.npmjs.org/ --replace-registry-host=never`
+- `npm ci --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=never`
+- `npm exec electron -- --version`
+- `npm run rebuild`
+- `./node_modules/.bin/electron-rebuild -f -o node-hid`
+- `./node_modules/.bin/electron-rebuild -f -o uiohook-napi`
+- `./node_modules/.bin/electron-rebuild -f -o active-win`
 
-Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm only for lockfile generation. No full package install, lifecycle-script execution, native rebuild, application build, application run, or network request from the application was performed.
+Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. No application build, dev server, application run, or network request from the application itself was performed.
 
 ## Next Actions
 
-1. Create the first actual dependency bump commit for Electron 42 and build tooling.
-2. Rebuild native modules and record exact failures by platform.
-3. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.
+1. Resolve the `robotjs` blocker: replace `robotjs`, upgrade/patch it away from `nan`, or isolate it behind a platform-specific optional/developer path.
+2. Remove `targetpractice` from install-time dependency resolution for production installs; it is a test helper inside vendored `robotjs` and blocks macOS arm64 installs through nested Electron 1.8.8.
+3. Rerun normal `npm ci`, `npm run rebuild`, and Electron binary check.
+4. Run the manual smoke checklist once the app can start.
+5. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.

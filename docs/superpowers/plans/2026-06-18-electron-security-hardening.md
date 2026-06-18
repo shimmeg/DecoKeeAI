@@ -137,13 +137,17 @@ Update `electron` and related Electron builder dependencies. Do not change secur
 
 Electron dependency was bumped to `42.4.1`, deprecated `electron-rebuild` was replaced with `@electron/rebuild`, and direct `electron-builder` was added for root scripts. Security preferences were not changed.
 
-- [ ] **Step 3: Rebuild native modules**
+- [x] **Step 3: Rebuild native modules**
 
 Validate `node-hid`, `robotjs`, `uiohook-napi`, `active-win`, `sharp`, and local `file:modules/*` packages.
+
+Validation results are recorded in `docs/security/electron-upgrade-notes.md`: `node-hid`, `uiohook-napi`, `active-win`, and `sharp` pass targeted validation on macOS arm64, while `robotjs@0.6.0` fails to compile against Electron 42 / Node 24 headers. Normal `npm ci` is also blocked by `modules/robotjs` devDependency `targetpractice`, which pulls nested `electron@1.8.8` without a usable `darwin-arm64` artifact.
 
 - [ ] **Step 4: Run smoke checklist**
 
 Use `docs/security/security-migration-baseline.md`. Record failures in `docs/security/electron-upgrade-notes.md`.
+
+Attempted after native validation, but full smoke is blocked until `robotjs` is resolved. The blocked checklist status is recorded in `docs/security/electron-upgrade-notes.md`.
 
 ## Task 4: Secure BrowserWindow Factory
 
