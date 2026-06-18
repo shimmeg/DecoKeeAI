@@ -260,7 +260,7 @@ Native validation conclusion after isolation: the Electron 42 macOS arm64 instal
 
 Task 3.4 was partially attempted after the `robotjs` isolation.
 
-- App Startup: interactive launch was not run. `npm run buildapp:mac` compiled the renderer and main Electron bundles, downloaded Electron `42.4.1` for `darwin-arm64`, and reached packaging. Signed packaging failed during macOS codesign with `errSecInternalComponent` for local identity `Apple Development: anton@efimow.name`; this is a signing/environment blocker, not a native rebuild blocker. Unsigned packaging with `CSC_IDENTITY_AUTO_DISCOVERY=false` skipped code signing and produced `dist_electron/mac-arm64/DecoKeeAI.app` plus `dist_electron/DecoKeeAI-0.0.61-arm64-mac.zip`, but the command still exited non-zero when the older Electron Builder toolchain tried to spawn missing `/usr/bin/python` while finishing macOS artifacts.
+- App Startup: interactive launch was not run. `npm run buildapp:mac` compiled the renderer and main Electron bundles, downloaded Electron `42.4.1` for `darwin-arm64`, and reached packaging. An earlier signed packaging attempt failed during macOS codesign with `errSecInternalComponent`, but a later signed retry passed the signing phase for local identity `Apple Development: anton@efimow.name` and then failed at the same later packaging step as the unsigned path: the older Electron Builder toolchain tries to spawn missing `/usr/bin/python` while finishing macOS artifacts. Unsigned packaging with `CSC_IDENTITY_AUTO_DISCOVERY=false` also skipped code signing and produced `dist_electron/mac-arm64/DecoKeeAI.app` plus `dist_electron/DecoKeeAI-0.0.61-arm64-mac.zip` before hitting the `/usr/bin/python` failure.
 - Device And HID: native module load smoke passed for `node-hid`; physical DECOKEE Quake connection and key press flow were not run because hardware is required. Configured text/hotkey actions are known-disabled while `keyboardAutomation` has no supported backend.
 - AI And STT/TTS: not run. Requires app startup plus provider configuration/API keys. AI output-to-key-input automatic paste is known-disabled while `keyboardAutomation` has no supported backend.
 - Plugins: not run dynamically. Electron main/renderer bundle compilation passed, and `active-win`/`uiohook-napi` native load smoke passed.
@@ -272,7 +272,7 @@ Static guard status:
 
 - `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
 
-Smoke validation conclusion: the install/rebuild blocker is cleared, but Task 3.4 is not fully complete. Before BrowserWindow/preload hardening, resolve or explicitly accept the temporary keyboard automation disablement and decide whether macOS package smoke should be completed with unsigned artifacts, a fixed `/usr/bin/python` compatibility workaround, or a newer builder chain.
+Smoke validation conclusion: the install/rebuild blocker is cleared, but Task 3.4 is not fully complete. Before BrowserWindow/preload hardening, resolve or explicitly accept the temporary keyboard automation disablement and decide whether macOS package smoke should be completed with existing `.app`/zip artifacts, a fixed `/usr/bin/python` compatibility workaround, or a newer builder chain.
 
 ## Breaking Changes Relevant To This App
 
@@ -380,14 +380,15 @@ Local commands:
 - `env CSC_IDENTITY_AUTO_DISCOVERY=false npm run buildapp:mac`
 - `find dist_electron -maxdepth 2 -type f -o -type d`
 - `ls -la /usr/bin/python /usr/bin/python3 /opt/homebrew/bin/python3 /usr/local/bin/python3`
+- `npm run buildapp:mac`
 - `node scripts/security/check-electron-security-baseline.mjs`
 
-Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. `npm run build` is not an Electron build smoke in this project and fails on existing browser-webpack Node core fallback errors. `npm run buildapp:mac` compiled renderer/main bundles and then failed at macOS codesign. `CSC_IDENTITY_AUTO_DISCOVERY=false npm run buildapp:mac` skipped signing, created a `.app` and zip artifact, and then failed because `/usr/bin/python` is absent on this host. No dev server, interactive application run, or network request from the application itself was performed.
+Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. `npm run build` is not an Electron build smoke in this project and fails on existing browser-webpack Node core fallback errors. `npm run buildapp:mac` compiled renderer/main bundles; an earlier run failed at macOS codesign, and a later signed retry passed signing before failing because `/usr/bin/python` is absent on this host. `CSC_IDENTITY_AUTO_DISCOVERY=false npm run buildapp:mac` skipped signing, created a `.app` and zip artifact, and then failed at the same `/usr/bin/python` step. No dev server, interactive application run, or network request from the application itself was performed.
 
 ## Next Actions
 
 1. Choose the permanent keyboard automation strategy before shipping: replace `robotjs` with a supported backend, or keep the disabled adapter behind an explicit product flag with UI/feature handling.
-2. For local packaging smoke without the Apple signing password, use `CSC_IDENTITY_AUTO_DISCOVERY=false npm run buildapp:mac`; then resolve the older builder dependency on `/usr/bin/python` or switch to a target/path that does not require it.
+2. Resolve the older builder dependency on `/usr/bin/python` or switch to a target/path that does not require it; both signed and unsigned packaging now reach that blocker.
 3. Run interactive app startup smoke from the packaged or dev app once unsigned/signed packaging is unblocked.
 4. Run hardware/API dependent smoke: DECOKEE Quake HID, configured hotkey/text actions, AI/STT/TTS, plugin flows, local server/phone companion flows.
 5. Only after the runtime opens cleanly and the temporary keyboard automation decision is accepted, continue to Task 4: secure BrowserWindow factory.

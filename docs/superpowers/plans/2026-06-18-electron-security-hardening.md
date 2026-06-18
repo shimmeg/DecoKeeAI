@@ -149,7 +149,7 @@ The blocker was isolated for this runtime spike by removing `robotjs` from the r
 
 Use `docs/security/security-migration-baseline.md`. Record failures in `docs/security/electron-upgrade-notes.md`.
 
-Partially attempted after `robotjs` isolation. Electron renderer/main bundle compilation passed through `npm run buildapp:mac`, but signed packaging failed during local macOS codesign with `errSecInternalComponent`. Unsigned packaging with `CSC_IDENTITY_AUTO_DISCOVERY=false` skipped signing and produced `.app`/zip artifacts, then failed because the older Electron Builder path tried to spawn missing `/usr/bin/python`. Interactive app startup, DECOKEE hardware, AI/STT/TTS, plugin runtime, OTA, local server, and privacy/secrets dynamic checks were not run; required hardware/API keys/app startup or later hardening tasks. Details are recorded in `docs/security/electron-upgrade-notes.md`.
+Partially attempted after `robotjs` isolation. Electron renderer/main bundle compilation passed through `npm run buildapp:mac`. An earlier signed packaging attempt failed during local macOS codesign with `errSecInternalComponent`, but a later signed retry passed signing and failed at the same later packaging step as the unsigned path: the older Electron Builder path tries to spawn missing `/usr/bin/python`. Unsigned packaging with `CSC_IDENTITY_AUTO_DISCOVERY=false` skipped signing and produced `.app`/zip artifacts before that Python failure. Interactive app startup, DECOKEE hardware, AI/STT/TTS, plugin runtime, OTA, local server, and privacy/secrets dynamic checks were not run; required hardware/API keys/app startup or later hardening tasks. Details are recorded in `docs/security/electron-upgrade-notes.md`.
 
 ## Task 4: Secure BrowserWindow Factory
 
