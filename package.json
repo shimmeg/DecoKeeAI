@@ -6,6 +6,7 @@
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
+    "security:baseline": "node scripts/security/check-electron-security-baseline.mjs",
     "go": "vue-cli-service electron:serve --x64",
     "golinux": "vue-cli-service electron:serve",
     "buildapp": "vue-cli-service electron:build",
