@@ -29,9 +29,9 @@ Official references:
 - https://www.electronjs.org/docs/latest/breaking-changes
 - https://www.electronjs.org/blog/electron-42-0
 
-## Current Runtime Baseline
+## Runtime Baseline And Migration State
 
-Current repository state:
+Baseline repository state:
 
 - `package.json` devDependency pins `electron` to `23.0.0`.
 - Electron release schedule marks Electron `23.0.0` stable on 2023-02-07, EOL on 2023-08-15, with Chromium M110 and Node.js `18.12.1`.
@@ -39,6 +39,12 @@ Current repository state:
 - A baseline `package-lock.json` has now been generated with install scripts disabled and committed as an explicit migration artifact.
 - Local inspection environment: Node.js `v26.3.0`, npm `11.16.0`.
 - `npm run security:baseline` is intentionally red from the Phase 0 guard and must remain red until hardening tasks remove specific findings.
+
+Current migration branch state:
+
+- `package.json` pins `electron` to `42.4.1`.
+- `package.json` uses `@electron/rebuild@^4.0.4` and no longer depends on deprecated `electron-rebuild`.
+- `package.json` has direct `electron-builder@^26.15.3` so root scripts do not rely only on a transitive builder binary.
 
 Build/runtime coupling to Electron 23 found at baseline:
 
@@ -68,8 +74,19 @@ Native and local packages that require explicit compatibility checks:
 Electron build tooling requiring review:
 
 - `vue-cli-plugin-electron-builder@^2.1.1`
-- `electron-rebuild@^3.2.9`
+- `@electron/rebuild@^4.0.4`
+- direct `electron-builder@^26.15.3`
+- nested `electron-builder@22.14.13` pulled by `vue-cli-plugin-electron-builder@2.1.1`
 - `electron-builder install-app-deps` in `postinstall` and `postuninstall`
+
+Electron dependency bump:
+
+- npm registry lookup confirmed `electron` latest is `42.4.1`.
+- `package.json` now pins `electron` to `42.4.1`.
+- Legacy `electron-rebuild@^3.2.9` was replaced with `@electron/rebuild@^4.0.4`; the registry marks `electron-rebuild` as deprecated and points to `@electron/rebuild`.
+- Direct `electron-builder@^26.15.3` was added so root package scripts use a current builder binary instead of relying only on the old builder dependency pulled by `vue-cli-plugin-electron-builder`.
+- Stable `vue-cli-plugin-electron-builder` remains `^2.1.1`; npm still reports `2.1.1` as the latest stable tag. Its `3.0.0-alpha.4` line is alpha and still depends on `electron-builder@^22.2.0`, so it was not adopted in this spike.
+- Packaging compatibility is still open because the Vue CLI Electron plugin may continue to use its own old transitive `electron-builder` dependency internally.
 
 ## Lockfile Baseline
 
@@ -82,11 +99,11 @@ npm install --package-lock-only --ignore-scripts --registry=https://registry.npm
 Result:
 
 - `package-lock.json` lockfileVersion is `3`.
-- Lockfile contains `2464` package entries.
+- Lockfile contains `2597` package entries after the Electron 42/build-tooling bump.
 - All remote `resolved` URLs use `registry.npmjs.org`; local `registry.npmmirror.com` configuration was deliberately excluded from the committed lockfile.
 - `node_modules` was not created.
 - Install/lifecycle scripts were disabled for generation.
-- npm still reported `92 vulnerabilities` from audit metadata: `7 low`, `47 moderate`, `34 high`, `4 critical`.
+- npm still reported `91 vulnerabilities` from audit metadata after the bump: `7 low`, `48 moderate`, `32 high`, `4 critical`.
 - npm reported `EBADENGINE` for `@achrinza/node-ipc@9.2.10` and `@achrinza/node-ipc@9.2.2` under the local Node.js `v26.3.0` runtime.
 
 Packages marked with `hasInstallScript` in the lockfile:
@@ -94,16 +111,17 @@ Packages marked with `hasInstallScript` in the lockfile:
 - root package `.`
 - `modules/active-win`
 - `modules/robotjs`
-- `node_modules/electron`
+- `node_modules/electron-winstaller`
 - `node_modules/targetpractice/node_modules/electron`
 - `node_modules/node-hid`
 - `node_modules/sharp`
 - `node_modules/uiohook-napi`
-- `node_modules/lzma-native`
 - `node_modules/fsevents`
 - `node_modules/watchpack-chokidar2/node_modules/fsevents`
 - `node_modules/yorkie`
 - six legacy `core-js` install-script locations under Babel/test tooling
+
+`node_modules/electron` is no longer marked with `hasInstallScript` after the Electron 42 bump, which matches the Electron 42 npm package behavior change.
 
 Do not treat a normal `npm install` or `npm ci` as validated yet. The hardcoded Electron 23/ABI 113 scripts have been removed, but native module compatibility still requires the Electron 42 dependency bump and platform rebuild checks.
 

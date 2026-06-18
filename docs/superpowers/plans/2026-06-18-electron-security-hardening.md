@@ -131,9 +131,11 @@ Lockfile baseline was generated before dependency changes: `.gitignore` no longe
 
 Hardcoded Electron 23/ABI 113 rebuild scripts were removed before the dependency bump: root `install` lifecycle was deleted, root manual rebuild scripts now use `electron-rebuild`, and local `robotjs`/`active-win` install scripts no longer pass fixed Electron target or ABI values.
 
-- [ ] **Step 2: Update Electron dependency in an isolated branch**
+- [x] **Step 2: Update Electron dependency in an isolated branch**
 
 Update `electron` and related Electron builder dependencies. Do not change security preferences in this task.
+
+Electron dependency was bumped to `42.4.1`, deprecated `electron-rebuild` was replaced with `@electron/rebuild`, and direct `electron-builder` was added for root scripts. Security preferences were not changed.
 
 - [ ] **Step 3: Rebuild native modules**
 
