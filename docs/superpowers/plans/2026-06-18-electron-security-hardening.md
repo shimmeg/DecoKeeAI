@@ -141,13 +141,15 @@ Electron dependency was bumped to `42.4.1`, deprecated `electron-rebuild` was re
 
 Validate `node-hid`, `robotjs`, `uiohook-napi`, `active-win`, `sharp`, and local `file:modules/*` packages.
 
-Validation results are recorded in `docs/security/electron-upgrade-notes.md`: `node-hid`, `uiohook-napi`, `active-win`, and `sharp` pass targeted validation on macOS arm64, while `robotjs@0.6.0` fails to compile against Electron 42 / Node 24 headers. Normal `npm ci` is also blocked by `modules/robotjs` devDependency `targetpractice`, which pulls nested `electron@1.8.8` without a usable `darwin-arm64` artifact.
+Validation results are recorded in `docs/security/electron-upgrade-notes.md`: `node-hid`, `uiohook-napi`, `active-win`, and `sharp` pass targeted validation on macOS arm64. `robotjs@0.6.0` failed to compile against Electron 42 / Node 24 headers, and normal `npm ci` was blocked by its `targetpractice` devDependency pulling nested `electron@1.8.8`.
+
+The blocker was isolated for this runtime spike by removing `robotjs` from the root dependency graph and replacing direct product-source `robotjs` imports with a disabled `keyboardAutomation` adapter. Post-isolation `npm ci`, `npm run rebuild`, Electron `v42.4.1` check, and native load smoke for `node-hid`, `uiohook-napi`, `active-win`, and `sharp` pass on macOS arm64. Keyboard automation behaviors that depended on `robotjs` are intentionally disabled pending a supported replacement.
 
 - [ ] **Step 4: Run smoke checklist**
 
 Use `docs/security/security-migration-baseline.md`. Record failures in `docs/security/electron-upgrade-notes.md`.
 
-Attempted after native validation, but full smoke is blocked until `robotjs` is resolved. The blocked checklist status is recorded in `docs/security/electron-upgrade-notes.md`.
+Partially attempted after `robotjs` isolation. Electron renderer/main bundle compilation passed through `npm run buildapp:mac`, but packaging failed during local macOS codesign with `errSecInternalComponent`. Interactive app startup, DECOKEE hardware, AI/STT/TTS, plugin runtime, OTA, local server, and privacy/secrets dynamic checks were not run; required hardware/API keys/app startup or later hardening tasks. Details are recorded in `docs/security/electron-upgrade-notes.md`.
 
 ## Task 4: Secure BrowserWindow Factory
 

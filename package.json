@@ -19,7 +19,8 @@
     "postuninstall": "electron-builder install-app-deps",
     "rebuild": "electron-rebuild",
     "updatefiles": "electron-rebuild",
-    "rebuildmodule": "electron-rebuild --force"
+    "rebuildmodule": "electron-rebuild --force",
+    "security:runtime-blockers": "node scripts/security/check-electron-runtime-blockers.mjs"
   },
   "author": {
     "name": "DECOKEE AI",
@@ -52,7 +53,6 @@
     "node-hid": "2.1.2",
     "openai": "^4.51.0",
     "papaparse": "^5.4.1",
-    "robotjs": "file:modules/robotjs",
     "sharp": "^0.33.4",
     "shelljs": "^0.8.5",
     "showdown": "^2.1.0",

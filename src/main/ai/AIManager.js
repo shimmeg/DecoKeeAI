@@ -55,6 +55,7 @@ import WebSpeechAudioAdapter from '@/main/ai/Connector/WebSpeechAudioAdapter';
 import { deepCopy } from '@/utils/ObjectUtil';
 import CozeAdapter from "@/main/ai/Connector/CozeAdapter";
 import FirecrawlEngineAdapter from "@/main/ai/Connector/FirecrawlEngineAdapter";
+import keyboardAutomation from '@/main/native/keyboardAutomation';
 
 const { exec } = require('child_process');
 const levenshtein = require('fast-levenshtein');
@@ -191,8 +192,6 @@ class AIManager {
         this.aiAssistantModelType = '';
         this.speechModelType = '';
         this.aiChatModelType = '';
-
-        this.outputRobot = undefined;
 
         this.markdownConverter = undefined;
 
@@ -2549,13 +2548,10 @@ class AIManager {
 
     async _writeOutputToKeyInput(messageData) {
         if (!messageData || messageData === '') return;
-        if (!this.outputRobot) {
-            this.outputRobot = require('robotjs');
-        }
 
         console.log('AIManager: writeOutputToKeyInput: ' + messageData);
         clipboard.writeText(messageData);
-        this.outputRobot.keyTap('v', 50, ['control']);
+        keyboardAutomation.pasteClipboard();
     }
 
     _getEmptyConfigList(maxRow, maxCol) {

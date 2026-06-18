@@ -8,7 +8,7 @@ Baseline commit: `593a3a2`
 
 This file records the runtime spike: target Electron line, current build/runtime blockers, dependency changes, native-module validation results, and smoke-check status. It does not change Electron security preferences.
 
-The initial version of this note was docs-only. Later updates in this branch include dependency installation and native rebuild diagnostics. No application build, dev server, or application run has been performed.
+The initial version of this note was docs-only. Later updates in this branch include dependency installation, native rebuild diagnostics, the `robotjs` isolation, and Electron build smoke results. No dev server or interactive application run has been performed.
 
 ## Target Electron Line
 
@@ -45,6 +45,8 @@ Current migration branch state:
 - `package.json` pins `electron` to `42.4.1`.
 - `package.json` uses `@electron/rebuild@^4.0.4` and no longer depends on deprecated `electron-rebuild`.
 - `package.json` has direct `electron-builder@^26.15.3` so root scripts do not rely only on a transitive builder binary.
+- `package.json` no longer depends on `robotjs`; the stale vendored package remains in `modules/robotjs` but is not in the install/rebuild graph.
+- `src/main/native/keyboardAutomation.js` is a temporary disabled adapter for OS keyboard automation paths that previously required `robotjs`.
 
 Build/runtime coupling to Electron 23 found at baseline:
 
@@ -65,11 +67,11 @@ Hardcoded Electron 23/ABI 113 rebuild removal:
 Native and local packages that require explicit compatibility checks:
 
 - `node-hid@2.1.2`
-- `robotjs` from `file:modules/robotjs`, vendored package version `0.6.0`, `nan`-based native addon
 - `uiohook-napi@^1.5.4`
 - `active-win` from `file:modules/active-win`, vendored package version `8.1.1`, native package using prebuild/native fallback paths
 - `sharp@^0.33.4`
 - `font-carrier` from `file:modules/font-carrier`, stale pure-JS-looking dependency tree with `xmldom@^0.1.27`
+- `robotjs` is no longer an install-time package. The previous vendored `robotjs@0.6.0` addon is `nan`-based and fails against Electron 42 / Node 24 headers, so keyboard automation is disabled until a supported replacement is selected.
 
 Electron build tooling requiring review:
 
@@ -99,7 +101,7 @@ npm install --package-lock-only --ignore-scripts --registry=https://registry.npm
 Result:
 
 - `package-lock.json` lockfileVersion is `3`.
-- Lockfile contains `2597` package entries after the Electron 42/build-tooling bump.
+- Lockfile contains `2550` package entries after the Electron 42/build-tooling bump and `robotjs` isolation.
 - All remote `resolved` URLs use `registry.npmjs.org`; local `registry.npmmirror.com` configuration was deliberately excluded from the committed lockfile.
 - `node_modules` was not created.
 - Install/lifecycle scripts were disabled for generation.
@@ -110,20 +112,24 @@ Packages marked with `hasInstallScript` in the lockfile:
 
 - root package `.`
 - `modules/active-win`
-- `modules/robotjs`
+- `node_modules/babel-plugin-espower/node_modules/core-js`
+- `node_modules/babel-runtime/node_modules/core-js`
+- `node_modules/call-matcher/node_modules/core-js`
+- `node_modules/core-js`
 - `node_modules/electron-winstaller`
-- `node_modules/targetpractice/node_modules/electron`
+- `node_modules/empower-core/node_modules/core-js`
+- `node_modules/espurify/node_modules/core-js`
 - `node_modules/node-hid`
 - `node_modules/sharp`
 - `node_modules/uiohook-napi`
 - `node_modules/fsevents`
 - `node_modules/watchpack-chokidar2/node_modules/fsevents`
 - `node_modules/yorkie`
-- six legacy `core-js` install-script locations under Babel/test tooling
 
 `node_modules/electron` is no longer marked with `hasInstallScript` after the Electron 42 bump, which matches the Electron 42 npm package behavior change.
+`modules/robotjs`, `node_modules/robotjs`, `node_modules/targetpractice`, and `node_modules/targetpractice/node_modules/electron` are no longer present in the lockfile.
 
-Do not treat a normal `npm install` or `npm ci` as validated yet. The hardcoded Electron 23/ABI 113 scripts have been removed, but native module compatibility still requires the Electron 42 dependency bump and platform rebuild checks.
+Normal `npm ci` and `npm run rebuild` are now validated on macOS arm64 for the remaining Electron 42 native module graph. This does not validate disabled `robotjs` behavior; it confirms the runtime install/rebuild path no longer depends on `robotjs`.
 
 ## Native Module Validation Results
 
@@ -196,14 +202,68 @@ Targeted rebuild results:
 
 Native validation conclusion: Electron 42 runtime migration is blocked by `robotjs`. Full install is also blocked on macOS arm64 by `robotjs` devDependency `targetpractice` pulling nested `electron@1.8.8`.
 
+RobotJS isolation:
+
+- Root `robotjs` dependency was removed from `package.json` and `package-lock.json`.
+- `targetpractice` disappeared from the lockfile because it was only pulled by the vendored `modules/robotjs` devDependency.
+- Direct `require('robotjs')` imports were removed from `AIManager`, `DeviceControlManager`, and `menu`.
+- `src/main/native/keyboardAutomation.js` now returns `false` for keyboard automation operations and logs that the `robotjs`-backed paths are disabled for this Electron 42 spike.
+- AI output-to-key-input still writes the text to the Electron clipboard, but automatic paste is disabled.
+- Device configured text/hotkey actions now report invalid action feedback when keyboard automation is unavailable.
+- The selected-text AI helper menu is disabled while keyboard automation is unavailable.
+- `scripts/security/check-electron-runtime-blockers.mjs` was added to guard against reintroducing `robotjs`, `targetpractice`, or direct product-source `robotjs` imports.
+
+Post-isolation full install:
+
+```bash
+npm ci
+```
+
+Result: succeeded.
+
+- Installed packages: `2529`
+- `electron-builder install-app-deps` ran from `postinstall`.
+- `@electron/rebuild` prepared `modules/active-win`, `node-hid`, and `uiohook-napi`.
+- npm still reports local config warnings for `disturl`, `ELECTRON_MIRROR`, `ELECTRON_CUSTOM_DIR`, and `node_gyp`.
+- npm still reports `EBADENGINE` warnings for `@achrinza/node-ipc` under local Node.js `v26.3.0`.
+
+Post-isolation rebuild:
+
+```bash
+npm run rebuild
+```
+
+Result: succeeded.
+
+- `electron-rebuild` discovered and rebuilt `modules/active-win`, `node-hid`, and `uiohook-napi`.
+- `robotjs` was not discovered because it is no longer in the dependency graph.
+
+Post-isolation native load smoke:
+
+```bash
+node -e "const mods=['node-hid','uiohook-napi','active-win','sharp']; for (const mod of mods) { const value=require(mod); console.log(mod + ': ok', typeof value); }"
+```
+
+Result: succeeded for all four modules.
+
+Post-isolation runtime blocker guard:
+
+```bash
+npm run security:runtime-blockers
+```
+
+Result: succeeded.
+
+Native validation conclusion after isolation: the Electron 42 macOS arm64 install/rebuild blocker is resolved for the remaining dependency graph. The remaining product blocker is functional: OS keyboard automation features that depended on `robotjs` are intentionally disabled until a supported replacement is implemented and tested.
+
 ## Smoke Checklist Status
 
-Task 3.4 was attempted after native validation, but full smoke testing is blocked.
+Task 3.4 was partially attempted after the `robotjs` isolation.
 
-- App Startup: not run. The runtime cannot be considered launch-ready while `robotjs` native rebuild fails.
-- Device And HID: not run. Requires app startup and DECOKEE Quake hardware.
-- AI And STT/TTS: not run. Requires app startup plus provider configuration/API keys.
-- Plugins: not run. Requires app startup and plugin runtime.
+- App Startup: interactive launch was not run. `npm run buildapp:mac` compiled the renderer and main Electron bundles, downloaded Electron `42.4.1` for `darwin-arm64`, and reached packaging. Packaging failed during macOS codesign with `errSecInternalComponent` for local identity `Apple Development: anton@efimow.name`; this is a signing/environment blocker, not a native rebuild blocker.
+- Device And HID: native module load smoke passed for `node-hid`; physical DECOKEE Quake connection and key press flow were not run because hardware is required. Configured text/hotkey actions are known-disabled while `keyboardAutomation` has no supported backend.
+- AI And STT/TTS: not run. Requires app startup plus provider configuration/API keys. AI output-to-key-input automatic paste is known-disabled while `keyboardAutomation` has no supported backend.
+- Plugins: not run dynamically. Electron main/renderer bundle compilation passed, and `active-win`/`uiohook-napi` native load smoke passed.
 - OTA: not run. Signed-update flow does not exist yet; covered by later OTA hardening task.
 - Local Servers And Phone Companion: not run. Requires app startup and pairing flow.
 - Privacy And Secrets: not run dynamically. Static baseline still shows known insecure storage/logging issues.
@@ -212,7 +272,7 @@ Static guard status:
 
 - `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
 
-Smoke validation conclusion: do not proceed to BrowserWindow/preload hardening as if the runtime is healthy. Resolve or replace `robotjs`, then rerun normal `npm ci`, `npm run rebuild`, and the manual smoke checklist.
+Smoke validation conclusion: the install/rebuild blocker is cleared, but Task 3.4 is not fully complete. Before BrowserWindow/preload hardening, resolve or explicitly accept the temporary keyboard automation disablement and decide whether macOS codesign/package smoke must be fixed in this runtime spike or tracked as a separate build/signing task.
 
 ## Breaking Changes Relevant To This App
 
@@ -307,13 +367,24 @@ Local commands:
 - `./node_modules/.bin/electron-rebuild -f -o node-hid`
 - `./node_modules/.bin/electron-rebuild -f -o uiohook-napi`
 - `./node_modules/.bin/electron-rebuild -f -o active-win`
+- `rg -n "robotjs|moveMouse|keyTap|typeString|screen.capture|getPixelColor" src modules package.json`
+- `node scripts/security/check-electron-runtime-blockers.mjs`
+- `npm install --package-lock-only --ignore-scripts`
+- `npm ci`
+- `npm run rebuild`
+- `npm run security:runtime-blockers`
+- `node -e "const mods=['node-hid','uiohook-napi','active-win','sharp']; for (const mod of mods) { const value=require(mod); console.log(mod + ': ok', typeof value); }"`
+- `npm exec electron -- --version`
+- `npm run build`
+- `npm run buildapp:mac`
+- `node scripts/security/check-electron-security-baseline.mjs`
 
-Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. No application build, dev server, application run, or network request from the application itself was performed.
+Official web references were checked for Electron release status and breaking changes. Dependency metadata was fetched from npm for lockfile generation and install/rebuild diagnostics. `npm run build` is not an Electron build smoke in this project and fails on existing browser-webpack Node core fallback errors. `npm run buildapp:mac` compiled renderer/main bundles and then failed at macOS codesign. No dev server, interactive application run, or network request from the application itself was performed.
 
 ## Next Actions
 
-1. Resolve the `robotjs` blocker: replace `robotjs`, upgrade/patch it away from `nan`, or isolate it behind a platform-specific optional/developer path.
-2. Remove `targetpractice` from install-time dependency resolution for production installs; it is a test helper inside vendored `robotjs` and blocks macOS arm64 installs through nested Electron 1.8.8.
-3. Rerun normal `npm ci`, `npm run rebuild`, and Electron binary check.
-4. Run the manual smoke checklist once the app can start.
-5. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.
+1. Choose the permanent keyboard automation strategy before shipping: replace `robotjs` with a supported backend, or keep the disabled adapter behind an explicit product flag with UI/feature handling.
+2. Decide whether the macOS `codesign` `errSecInternalComponent` failure belongs in this runtime spike or a separate signing/build task.
+3. Run interactive app startup smoke from the packaged or dev app once codesign/signing is unblocked.
+4. Run hardware/API dependent smoke: DECOKEE Quake HID, configured hotkey/text actions, AI/STT/TTS, plugin flows, local server/phone companion flows.
+5. Only after the runtime opens cleanly and the temporary keyboard automation decision is accepted, continue to Task 4: secure BrowserWindow factory.

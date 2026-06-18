@@ -1,12 +1,12 @@
 import {Menu, clipboard} from 'electron';
 import {uIOhook, UiohookKey} from 'uiohook-napi';
 import {i18nRender} from "@/plugins/i18n";
+import keyboardAutomation from '@/main/native/keyboardAutomation';
 
 const activeWindow = require('active-win');
 const { nativeImage, nativeTheme, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const robotjs = require('robotjs');
 
 const SHOW_AI_MENU_THRESHOLD = 500; // 500 ms 内的点击算作双击
 const CLIPBOARD_CONTENT_TYPE = {
@@ -95,7 +95,9 @@ class MenuManager {
     stopMouseAIHelperMenu() {
         this.enableMouseAIChecking = false;
 
-        this.mouseAIMenu.closePopup();
+        if (this.mouseAIMenu) {
+            this.mouseAIMenu.closePopup();
+        }
 
         this.isDragging = false;
         this.dragStart = null;
@@ -161,7 +163,11 @@ class MenuManager {
     }
 
     _initAIHelperMenu() {
-        this.mouseAIRobot = require('robotjs');
+        if (!keyboardAutomation.isAvailable()) {
+            console.warn('Mouse AI helper menu disabled: keyboard automation is unavailable in the Electron 42 runtime spike.');
+            this.initAIHelperDone = true;
+            return;
+        }
         const that = this;
 
         this._createAIHelperMenu();
@@ -175,7 +181,9 @@ class MenuManager {
                     that.shouldShowAIMenu = false;
                     that.aiMenuShown = false;
                     that.aiMenuShowProcessStart = false;
-                    that.mouseAIMenu.closePopup();
+                    if (that.mouseAIMenu) {
+                        that.mouseAIMenu.closePopup();
+                    }
                     that.clipboardContent = {}
                 }, 200);
 
@@ -206,7 +214,9 @@ class MenuManager {
                 that.aiMenuShown = false;
                 that.aiMenuShowProcessStart = false;
                 that.clipboardContent = {}
-                that.mouseAIMenu.closePopup();
+                if (that.mouseAIMenu) {
+                    that.mouseAIMenu.closePopup();
+                }
             }
         });
 
@@ -228,7 +238,9 @@ class MenuManager {
                 that.aiMenuShown = false;
                 that.aiMenuShowProcessStart = false;
                 that.clipboardContent = {}
-                that.mouseAIMenu.closePopup();
+                if (that.mouseAIMenu) {
+                    that.mouseAIMenu.closePopup();
+                }
             } else if (triggeredSelectAll) {
                 clearTimeout(that.showAIHelperMenuTask);
 
@@ -388,7 +400,14 @@ class MenuManager {
         this.aiMenuShowProcessStart = true;
         const oldClipboardData = clipboard.readText();
         clipboard.clear();
-        this.mouseAIRobot.keyTap('c', 10, [isOnMac ? 'command' : 'control']);
+        if (!keyboardAutomation.copySelection(isOnMac ? 'command' : 'control')) {
+            clipboard.clear();
+            clipboard.writeText(oldClipboardData);
+            this.shouldShowAIMenu = false;
+            this.aiMenuShown = false;
+            this.aiMenuShowProcessStart = false;
+            return;
+        }
 
         setTimeout(() => {
 
@@ -399,7 +418,7 @@ class MenuManager {
             }
 
             try {
-                const clipBoardData = robotjs.getClipboardContent();
+                const clipBoardData = keyboardAutomation.getClipboardContent();
 
                 const nativeClipboardData = eval('(' + clipBoardData + ')');
 

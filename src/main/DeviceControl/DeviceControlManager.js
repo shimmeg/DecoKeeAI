@@ -44,8 +44,8 @@ import AIManager from "@/main/ai/AIManager";
 import {PROTOCOL_OP_CODE, PROTOCOL_RAW_RES_TYPE} from "@/main/DeviceControl/Connections/ProtocolUtil";
 import {deepCopy} from "@/utils/ObjectUtil";
 import path from "path";
+import keyboardAutomation from '@/main/native/keyboardAutomation';
 
-const robotjs = require('robotjs');
 const activeWindow = require('active-win');
 const { getOpenWindowsSync, bringAppToFront } = require('active-win');
 const fs = require('fs');
@@ -371,7 +371,7 @@ class DeviceControlManager {
                 err
             );
         }
-        robotjs.setKeyboardDelay(0);
+        keyboardAutomation.setKeyboardDelay(0);
 
         loadAppMonitorConfigInfo();
 
@@ -1330,7 +1330,10 @@ function processConfiguredAction(
                 notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
                 break;
             }
-            robotjs.typeString(keyActions[0].value);
+            if (!keyboardAutomation.typeString(keyActions[0].value)) {
+                notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
+                break;
+            }
 
             if ((keyActions.length === 2 && keyActions[1].type === 'key') && !sendKeyEvent(keyActions[1].value)) {
                 notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
@@ -1376,13 +1379,17 @@ function sendKeyEventWithGap(keyValue, delayGap) {
         const keyValues = keyValue.split('+');
         if (keyValues.length === 1 || keyValue === '+') {
             if (SPECIAL_CHAR_INPUT.includes(keyValue)) {
-                robotjs.typeString(keyValue);
+                if (!keyboardAutomation.typeString(keyValue)) {
+                    return false;
+                }
             } else {
 
                 if (keyValue === 'printscreen') {
                     captureScreen();
                 } else {
-                    robotjs.keyTap(keyValue, delayGap);
+                    if (!keyboardAutomation.keyTap(keyValue, delayGap)) {
+                        return false;
+                    }
                 }
             }
         } else {
@@ -1402,7 +1409,9 @@ function sendKeyEventWithGap(keyValue, delayGap) {
                 }
                 console.log('DeviceControlManager: keyModifiers: ' + keyModifiers);
 
-                robotjs.keyTap(keyValues[keyValues.length - 1], delayGap, keyModifiers);
+                if (!keyboardAutomation.keyTap(keyValues[keyValues.length - 1], delayGap, keyModifiers)) {
+                    return false;
+                }
             }
         }
         return true;

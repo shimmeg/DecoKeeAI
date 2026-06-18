@@ -24,6 +24,7 @@ pnpm-debug.log*
 *.sln
 *.sw?
 /modules/robotjs/build
+/modules/active-win/build
 /modules/active-win/lib/binding/
 /modules/active-win/build-tmp*
 /hs_err_pid60564.log
