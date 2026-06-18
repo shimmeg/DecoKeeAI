@@ -3,9 +3,7 @@
         <webview
             id="plugin-view"
             :src="pluginUrl"
-            allowpopups
             style="width: 100%; height: 100%"
-            webpreferences="webSecurity=no,nodeIntegration=yes"
         >
         </webview>
     </div>

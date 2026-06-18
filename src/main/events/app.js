@@ -1,6 +1,7 @@
 import {app, globalShortcut, ipcMain} from 'electron'
 import {setLogSavePath} from "@/plugins/logOutput";
 import { uIOhook } from 'uiohook-napi'
+import { ENABLE_THIRD_PARTY_PLUGINS } from '@/main/config/SecurityProfile';
 
 class AppEvents {
     create(appManager) {
@@ -84,6 +85,16 @@ class AppEvents {
 
             console.log('EventAPP New WebContentCreate: ', e);
 
+            // Hardened build: force secure webPreferences on every <webview>,
+            // overriding any insecure tag attributes (nodeIntegration / webSecurity=no).
+            webContents.on('will-attach-webview', (event, webPreferences) => {
+                delete webPreferences.preload;
+                webPreferences.nodeIntegration = false;
+                webPreferences.nodeIntegrationInSubFrames = false;
+                webPreferences.contextIsolation = true;
+                webPreferences.webSecurity = true;
+            });
+
             webContents.on('page-title-updated', (e, title, explicitSet) => {
                 if (!reverseDnsRegex.test(title)) return;
 
@@ -121,6 +132,12 @@ class AppEvents {
             });
 
             webContents.setWindowOpenHandler((details) => {
+
+                // Hardened build: third-party plugins are disabled, so never open
+                // plugin child windows (which used insecure nodeIntegration).
+                if (!ENABLE_THIRD_PARTY_PLUGINS) {
+                    return { action: 'deny' };
+                }
 
                 const urlInfos = details.url.split('/');
                 console.log('Main APP: Received newwindow: details: ', details);

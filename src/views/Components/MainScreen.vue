@@ -13,7 +13,7 @@
                                     width: '100%',
                                     height: windowHeight + 'px',
                                     zIndex: 1000,
-                                }" :src="viaServerUrl" webpreferences="webSecurity=no,nodeIntegration=yes">
+                                }" :src="viaServerUrl">
                 </webview>
             </template>
 
