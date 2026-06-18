@@ -35,7 +35,9 @@ class StoreManager {
         }
 
         if (!this.store.has('aiConfig.speechEngineType')) {
-            this.store.set('aiConfig.speechEngineType', 'XFY')
+            // Hardened build: default speech-to-text to Azure (not iFlytek/XFY, a
+            // China-region cloud). Only affects fresh profiles; needs an Azure key.
+            this.store.set('aiConfig.speechEngineType', 'Azure')
         }
 
         if (!this.store.has('aiConfig.azure.speechLanguage')) {

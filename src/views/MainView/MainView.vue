@@ -130,7 +130,8 @@ export default {
     },
     created() {
         this.showAdsView = !this.disableAds;
-        this.checkForUpdates();
+        // Hardened build: no automatic update check on startup. OTA has no
+        // signature/hash verification, so updates are manual only (Settings).
     },
     methods: {
         showSettings() {

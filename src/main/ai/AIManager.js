@@ -228,7 +228,7 @@ class AIManager {
             }
 
             if (speechEngineType === undefined) {
-                speechEngineType = this.appManager.storeManager.storeGet('aiConfig.speechEngineType', SPEECH_ENGINE_TYPE.XYF);
+                speechEngineType = this.appManager.storeManager.storeGet('aiConfig.speechEngineType', SPEECH_ENGINE_TYPE.AZURE);
             }
 
             console.log('AIManager EngineTypeChange: speechModelType: ' + speechEngineType);
