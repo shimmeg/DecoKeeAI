@@ -40,13 +40,21 @@ Current repository state:
 - Local inspection environment: Node.js `v26.3.0`, npm `11.16.0`.
 - `npm run security:baseline` is intentionally red from the Phase 0 guard and must remain red until hardening tasks remove specific findings.
 
-Build/runtime coupling to Electron 23:
+Build/runtime coupling to Electron 23 found at baseline:
 
-- Root `install` script runs `npm rebuild --runtime=electron --target=23.0.0 --abi=113 --dist-url=https://electronjs.org/headers`.
-- Root `rebuildmodule` script runs `node-gyp rebuild --target=23.0.0 --arch=x64 --dist-url=https://electronjs.org/headers --abi=113`.
-- `modules/robotjs/package.json` has an `install` script pinned to Electron `23.0.0` and ABI `113`.
-- `modules/active-win/package.json` has an `install` script pinned to Electron `23.0.0` and ABI `113`.
+- Root `install` script ran `npm rebuild --runtime=electron --target=23.0.0 --abi=113 --dist-url=https://electronjs.org/headers`.
+- Root `rebuildmodule` script ran `node-gyp rebuild --target=23.0.0 --arch=x64 --dist-url=https://electronjs.org/headers --abi=113`.
+- `modules/robotjs/package.json` had an `install` script pinned to Electron `23.0.0` and ABI `113`.
+- `modules/active-win/package.json` had an `install` script pinned to Electron `23.0.0` and ABI `113`.
 - `vue.config.js` sets `buildDependenciesFromSource: true`, `npmRebuild: false`, `asar: false`, and Windows `requestedExecutionLevel: 'requireAdministrator'`.
+
+Hardcoded Electron 23/ABI 113 rebuild removal:
+
+- Root `install` lifecycle script was removed so a future `npm ci` does not run an extra rebuild before `postinstall`.
+- Root manual rebuild scripts now use `electron-rebuild` instead of direct `node-gyp` with fixed target/ABI values.
+- `modules/robotjs` install script now runs `node-gyp rebuild` without fixed Electron target/ABI.
+- `modules/active-win` install script now runs `node-pre-gyp install --fallback-to-build` without fixed Electron target/ABI.
+- This does not prove Electron 42 compatibility. It only removes an incorrect old-runtime pin before the dependency bump.
 
 Native and local packages that require explicit compatibility checks:
 
@@ -97,7 +105,7 @@ Packages marked with `hasInstallScript` in the lockfile:
 - `node_modules/yorkie`
 - six legacy `core-js` install-script locations under Babel/test tooling
 
-Do not run a normal `npm install` or `npm ci` yet. The next migration step must remove or neutralize hardcoded Electron 23/ABI 113 rebuild scripts before install scripts are allowed to run.
+Do not treat a normal `npm install` or `npm ci` as validated yet. The hardcoded Electron 23/ABI 113 scripts have been removed, but native module compatibility still requires the Electron 42 dependency bump and platform rebuild checks.
 
 ## Breaking Changes Relevant To This App
 
@@ -190,7 +198,6 @@ Official web references were checked for Electron release status and breaking ch
 
 ## Next Actions
 
-1. Remove or neutralize hardcoded Electron 23/ABI 113 rebuild scripts.
-2. Create the first actual dependency bump commit for Electron 42 and build tooling.
-3. Rebuild native modules and record exact failures by platform.
-4. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.
+1. Create the first actual dependency bump commit for Electron 42 and build tooling.
+2. Rebuild native modules and record exact failures by platform.
+3. Only after the runtime opens cleanly, continue to Task 4: secure BrowserWindow factory.

@@ -129,6 +129,8 @@ Recorded initial target and blockers in `docs/security/electron-upgrade-notes.md
 
 Lockfile baseline was generated before dependency changes: `.gitignore` no longer ignores `package-lock.json`, and the committed lockfile was created with install scripts disabled and official `registry.npmjs.org` resolved URLs.
 
+Hardcoded Electron 23/ABI 113 rebuild scripts were removed before the dependency bump: root `install` lifecycle was deleted, root manual rebuild scripts now use `electron-rebuild`, and local `robotjs`/`active-win` install scripts no longer pass fixed Electron target or ABI values.
+
 - [ ] **Step 2: Update Electron dependency in an isolated branch**
 
 Update `electron` and related Electron builder dependencies. Do not change security preferences in this task.

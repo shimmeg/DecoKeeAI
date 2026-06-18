@@ -17,10 +17,9 @@
     "buildapp:mac": "vue-cli-service electron:build --macos",
     "postinstall": "electron-builder install-app-deps",
     "postuninstall": "electron-builder install-app-deps",
-    "install": "npm rebuild --runtime=electron --target=23.0.0 --abi=113 --dist-url=https://electronjs.org/headers",
-    "rebuild": "./node_modules/.bin/electron-rebuild",
-    "updatefiles": "./node_modules/.bin/electron-rebuild",
-    "rebuildmodule": "node-gyp rebuild --target=23.0.0 --arch=x64 --dist-url=https://electronjs.org/headers --abi=113"
+    "rebuild": "electron-rebuild",
+    "updatefiles": "electron-rebuild",
+    "rebuildmodule": "electron-rebuild --force"
   },
   "author": {
     "name": "DECOKEE AI",

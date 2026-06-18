@@ -95,7 +95,7 @@
     "url": "git+https://github.com/octalmage/robotjs.git"
   },
   "scripts": {
-    "install": "node-gyp rebuild --target=23.0.0 --arch=x64 --dist-url=https://electronjs.org/headers --abi=113",
+    "install": "node-gyp rebuild",
     "test": "run-script-os",
     "test:darwin:linux": "jasmine 'test/**/*.js'",
     "test:win32": "jasmine test/**/*.js"
