@@ -40,6 +40,7 @@ import WSManager from '@/main/DeviceControl/Connections/WSManager';
 import PluginWSServer from '@/main/DeviceControl/Connections/PluginWSServer';
 import PluginAdapter, { PLUGIN_TYPE } from '@/main/DeviceControl/Connections/PluginAdapter';
 import { ENABLE_THIRD_PARTY_PLUGINS } from '@/main/config/SecurityProfile';
+import { execFileCb, runAppleScriptCb, findPidByNameCb, killPidCb, isValidPid } from '@/utils/SafeExec';
 import {getDeltaList} from "@/utils/Utils";
 import AIManager from "@/main/ai/AIManager";
 import {PROTOCOL_OP_CODE, PROTOCOL_RAW_RES_TYPE} from "@/main/DeviceControl/Connections/ProtocolUtil";
@@ -2754,21 +2755,22 @@ function processOpenAction(serialNumber, keyCode, filePath) {
             }
             if (exeName && exeName !== '') {
 
-                exec('tasklist | findstr ' + exeName, (error, stdout, stderr) => {
+                findPidByNameCb(exeName, (error, pid) => {
                     if (error) {
                         doOpenAction(serialNumber, keyCode, filePath);
                         return;
                     }
 
-                    const pid = stdout.split(/\s+/)[1]; // 根据 tasklist 的输出格式获取 PID
                     console.log(`DeviceControlManager: processOpenAction: pid ${pid} for ${filePath} processName: ${exeName}`);
 
                     try {
-                        if (pid && Number(pid) > 0) {
+                        if (isValidPid(pid)) {
                             bringApplicationToFront(filePath, Number(pid)).then(result => {
                                 if (result) return;
                                 doOpenAction(serialNumber, keyCode, filePath);
                             });
+                        } else {
+                            doOpenAction(serialNumber, keyCode, filePath);
                         }
                     } catch (err) {
                         console.log(`Invalid pid ${pid} info after search. Do open directly. ${err.message}`);
@@ -2809,48 +2811,43 @@ function doOpenAction(serialNumber, keyCode, filePath) {
 
 function bringApplicationToFront(applicationPath, pid) {
     return new Promise((resolve) => {
-        let bringToFrontScript = '', script = '', appName;
         switch (process.platform) {
-            case 'win32':
+            case 'win32': {
                 const bringToFrontResult = bringAppToFront(pid);
                 console.log('bringToFrontResult: ', bringToFrontResult);
-
-                if (bringToFrontResult !== 0) {
-                    resolve(false);
-                } else {
-                    resolve(true);
-                }
-
+                resolve(bringToFrontResult === 0);
                 return;
-            case 'darwin':
-                script = 'tell application "System Events" to set frontmost of process "' + applicationPath + '" to true';
-                bringToFrontScript = 'osascript -e \'' + script;
-                break;
-            case 'linux':
-                bringToFrontScript = 'xdotool search --onlyvisible --name "' + applicationPath + '" windowactivate';
-                break;
+            }
+            case 'darwin': {
+                // Hardened: process name passed as AppleScript argv (item 1 of argv),
+                // never string-interpolated into the script.
+                runAppleScriptCb(
+                    'on run argv\n  tell application "System Events" to set frontmost of process (item 1 of argv) to true\nend run',
+                    [applicationPath],
+                    (wmError, wmStdout, wmStderr) => {
+                        if (wmError) {
+                            console.error(`DeviceControlManager: bringApplicationToFront: ${wmError.message} wmStdout: ${wmStdout} wmStderr: ${wmStderr}`);
+                            resolve(false);
+                        } else {
+                            console.log(`DeviceControlManager: bringApplicationToFront: Application ${applicationPath} set to foreground.`);
+                            resolve(true);
+                        }
+                    }
+                );
+                return;
+            }
+            case 'linux': {
+                // Hardened: window name passed as an argument, no shell.
+                execFileCb('xdotool', ['search', '--onlyvisible', '--name', applicationPath, 'windowactivate'], (wmError) => {
+                    resolve(!wmError);
+                });
+                return;
+            }
             default:
                 console.error('Unsupported platform');
                 resolve(false);
                 return;
         }
-
-        // console.log('DeviceControlManager: bringApplicationToFront: bringToFrontScript: ' + bringToFrontScript);
-
-        if (bringToFrontScript === '') {
-            resolve(false);
-            return;
-        }
-
-        exec(bringToFrontScript, (wmError, wmStdout, wmStderr) => {
-            if (wmError) {
-                console.error(`DeviceControlManager: bringApplicationToFront: Error setting foreground window: ${wmError.message}   wmStdout: ${wmStdout} wmStderr: ${wmStderr}`);
-                resolve(false);
-            } else {
-                console.log(`DeviceControlManager: bringApplicationToFront: Application ${applicationPath} opened and set to foreground. wmStdout: ${wmStdout} wmStderr: ${wmStderr}`);
-                resolve(true);
-            }
-        });
     });
 }
 
@@ -2881,21 +2878,20 @@ function processCloseAction(serialNumber, keyCode, filePath) {
             notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
             return;
         }
-        exec('tasklist | findstr ' + exeName, (error, stdout, stderr) => {
-            if (error) {
+        findPidByNameCb(exeName, (error, pid) => {
+            if (error || !isValidPid(pid)) {
                 notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
-                console.error(`DeviceControlManager: processCloseAction: exec error: ${error}`);
+                if (error) console.error(`DeviceControlManager: processCloseAction: lookup error: ${error}`);
                 return;
             }
 
-            const pid = stdout.split(/\s+/)[1]; // 根据 tasklist 的输出格式获取 PID
             console.debug(`processCloseAction: pid ${pid} for ${filePath} processName: ${exeName}`);
 
-            // 强制关闭进程
-            exec(`taskkill /F /PID ${pid}`, (err, stdout, stderr) => {
+            // 强制关闭进程 (hardened: validated PID, no shell)
+            killPidCb(pid, (err) => {
                 if (err) {
                     notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
-                    console.error(`DeviceControlManager: processCloseAction: exec error: ${err}`);
+                    console.error(`DeviceControlManager: processCloseAction: kill error: ${err}`);
                     return;
                 }
                 console.log(
@@ -2912,22 +2908,20 @@ function processCloseAction(serialNumber, keyCode, filePath) {
         return;
     }
 
-    // 查找进程
-    exec('ps aux | grep ' + exeName, (error, stdout, stderr) => {
-        if (error) {
+    // 查找进程 (hardened: no shell/pipe — list processes, filter in JS, validated PID)
+    findPidByNameCb(exeName, (error, pid) => {
+        if (error || !isValidPid(pid)) {
             notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
-            console.error(`DeviceControlManager: exec error: ${error}`);
+            if (error) console.error(`DeviceControlManager: processCloseAction: lookup error: ${error}`);
             return;
         }
 
-        const pid = stdout.trim().split(/\s+/)[1]; // 根据 ps 的输出格式获取 PID
-
         // 强制关闭进程
-        exec(`kill -9 ${pid}`, (err, stdout, stderr) => {
+        killPidCb(pid, (err) => {
             if (err) {
                 notifyDeviceShowAlert(serialNumber, Constants.ALERT_TYPE_INVALID, keyCode);
                 console.error(
-                    `DeviceControlManager: processCloseAction: exec error: ${err}`
+                    `DeviceControlManager: processCloseAction: kill error: ${err}`
                 );
                 return;
             }

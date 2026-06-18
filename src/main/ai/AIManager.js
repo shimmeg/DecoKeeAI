@@ -57,6 +57,7 @@ import CozeAdapter from "@/main/ai/Connector/CozeAdapter";
 import FirecrawlEngineAdapter from "@/main/ai/Connector/FirecrawlEngineAdapter";
 import keyboardAutomation from '@/main/native/keyboardAutomation';
 import { ALLOW_SYSTEM_COMMANDS } from '@/main/config/SecurityProfile';
+import { execFileCb, findPidByNameCb, killPidCb, isValidPid } from '@/utils/SafeExec';
 
 const { exec } = require('child_process');
 const levenshtein = require('fast-levenshtein');
@@ -2020,11 +2021,10 @@ class AIManager {
 
             this.ttsEngineAdapter.playTTS(requestId, i18nRender('assistantConfig.closingApplication'));
 
-            // 强制关闭进程
-            // eslint-disable-next-line
-            exec(`taskkill /F /im ${execName}`, (err, stdout, stderr) => {
+            // 强制关闭进程 (hardened: no shell — image name passed as an argument)
+            execFileCb('taskkill', ['/F', '/im', execName], (err) => {
                 if (err) {
-                    console.error('AIManager: closeApplication: exec error: ', err);
+                    console.error('AIManager: closeApplication: taskkill error: ', err);
                     return;
                 }
                 console.log('AIManager: closeApplication: Process has been killed forcefully!');
@@ -2044,23 +2044,20 @@ class AIManager {
             return;
         }
 
-        // eslint-disable-next-line
-        exec('tasklist | findstr ' + exeName, (error, stdout, stderr) => {
-            if (error) {
+        // Hardened: no shell/pipe — list processes, filter in JS, kill by validated PID.
+        findPidByNameCb(exeName, (error, pid) => {
+            if (error || !isValidPid(pid)) {
                 this.ttsEngineAdapter.playTTS(requestId, i18nRender('assistantConfig.applicationNotFound'));
-                console.error('AIManager: closeApplication: exec error: ', error);
+                if (error) console.error('AIManager: closeApplication: process lookup error: ', error);
                 return;
             }
 
             this.ttsEngineAdapter.playTTS(requestId, i18nRender('assistantConfig.closingApplication'));
-            const pid = stdout.split(/\s+/)[1]; // 根据 tasklist 的输出格式获取 PID
             console.log('AIManager: closeApplication: pid ', pid, ' for ', applicationPath, ' processName: ', exeName);
 
-            // 强制关闭进程
-            // eslint-disable-next-line
-            exec(`taskkill /F /PID ${pid}`, (err, stdout, stderr) => {
+            killPidCb(pid, (err) => {
                 if (err) {
-                    console.log('AIManager: closeApplication: exec error: ', err);
+                    console.log('AIManager: closeApplication: kill error: ', err);
                     return;
                 }
                 console.log('AIManager: closeApplication: Process has been killed forcefully!');

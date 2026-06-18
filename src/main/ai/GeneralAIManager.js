@@ -34,6 +34,7 @@
  * limitations under the License.
  */
 import { exec } from 'child_process';
+import { execFileCb, runAppleScriptCb } from '@/utils/SafeExec';
 import { ipcMain } from 'electron';
 import Constants from '@/utils/Constants';
 import HAManager from "@/plugins/HomeAssistant/HAManager";
@@ -499,7 +500,7 @@ export default class GeneralAIManager {
 
     _getProgID(extension) {
         return new Promise(resolve => {
-            exec(`reg query HKEY_CLASSES_ROOT\\${extension}`, (err, stdout) => {
+            execFileCb('reg', ['query', `HKEY_CLASSES_ROOT\\${extension}`], (err, stdout) => {
                 if (err) {
                     // console.warn(`Error querying ProgID for extension ${extension}:`, err);
                     return resolve(null);
@@ -517,7 +518,7 @@ export default class GeneralAIManager {
 
     _getAppForProgID(progID) {
         return new Promise(resolve => {
-            exec(`reg query HKEY_CLASSES_ROOT\\${progID}\\shell\\open\\command`, (err, stdout) => {
+            execFileCb('reg', ['query', `HKEY_CLASSES_ROOT\\${progID}\\shell\\open\\command`], (err, stdout) => {
                 if (err) {
                     // console.warn(`Error querying command for ProgID ${progID}:`, err);
                     return resolve(null);
@@ -535,7 +536,7 @@ export default class GeneralAIManager {
 
     _getAppName(appPath) {
         return new Promise(resolve => {
-            exec(`powershell -command "(Get-Item '${appPath}').VersionInfo.ProductName"`, (err, stdout) => {
+            execFileCb('powershell', ['-command', `(Get-Item '${appPath}').VersionInfo.ProductName`], (err, stdout) => {
                 if (err) {
                     // console.warn(`Error getting app name for ${appPath}:`, err);
                     return resolve(path.basename(appPath)); // 返回文件名作为备用
@@ -584,7 +585,7 @@ export default class GeneralAIManager {
                 for (const batch of batches) {
                     try {
                         const batchResult = await new Promise((resolve, reject) => {
-                            exec(`powershell -command "${batch}"`, (err, stdout) => {
+                            execFileCb('powershell', ['-command', batch], (err, stdout) => {
                                 if (err) return reject(err);
                                 resolve(stdout.trim().split('\r\n').filter(Boolean));
                             });
@@ -642,15 +643,15 @@ export default class GeneralAIManager {
                 let remaining = files.length;
 
                 files.forEach(file => {
-                    exec(`mdls -name kMDItemCFBundleIdentifier -r "${file}"`, (err, stdout) => {
+                    execFileCb('mdls', ['-name', 'kMDItemCFBundleIdentifier', '-r', file], (err, stdout) => {
                         if (err) return reject(err);
 
                         const appIdentifier = stdout.trim();
                         if (appIdentifier) {
-                            exec(`osascript -e 'id of app "${appIdentifier}"'`, (err, stdout) => {
+                            runAppleScriptCb('on run argv\n  id of app (item 1 of argv)\nend run', [appIdentifier], (err, stdout) => {
                                 const appPath = stdout.trim();
                                 if (appPath) {
-                                    exec(`osascript -e 'name of app id "${appIdentifier}"'`, (err, stdout) => {
+                                    runAppleScriptCb('on run argv\n  name of app id (item 1 of argv)\nend run', [appIdentifier], (err, stdout) => {
                                         const appName = stdout.trim();
                                         if (appName) {
                                             recentApps.set(appIdentifier, { name: appName, path: appPath });
@@ -695,17 +696,17 @@ export default class GeneralAIManager {
                 let remaining = files.length;
 
                 files.forEach(file => {
-                    exec(`xdg-mime query filetype "${file}"`, (err, stdout) => {
+                    execFileCb('xdg-mime', ['query', 'filetype', file], (err, stdout) => {
                         if (err) return reject(err);
 
                         const mimeType = stdout.trim();
                         if (mimeType) {
-                            exec(`xdg-mime query default "${mimeType}"`, (err, stdout) => {
+                            execFileCb('xdg-mime', ['query', 'default', mimeType], (err, stdout) => {
                                 if (err) return reject(err);
 
                                 const app = stdout.trim();
                                 if (app) {
-                                    exec(`basename "${app}"`, (err, stdout) => {
+                                    execFileCb('basename', [app], (err, stdout) => {
                                         const appName = stdout.trim();
                                         if (appName) {
                                             recentApps.set(app, { name: appName, path: app });
