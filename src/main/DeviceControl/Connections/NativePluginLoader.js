@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 
 export default class NativePluginLoader {
     constructor(appManager, pluginInfo) {
@@ -15,6 +15,7 @@ export default class NativePluginLoader {
         if (!this.executableFileName.endsWith(execEndFix)) {
             this.executableFileName += execEndFix;
         }
+        this.pluginProcess = undefined;
         let pluginExecutePath = path.join(pluginInfo.pluginPath, this.executableFileName);
         if (!fs.existsSync(pluginExecutePath)) {
             console.log(
@@ -75,39 +76,70 @@ export default class NativePluginLoader {
             return;
         }
 
-        const execCmd =
-            pluginExecutePath +
-            ' -port ' + pluginWSServerPort + ' ' +
-            '-pluginUUID "' + pluginInfo.pluginId + '" ' +
-            '-registerEvent "registerPluginHandler" ' +
-            '-info "' + JSON.stringify(this.inInfoParam).replaceAll('"', '\\"') + '"';
+        const pluginArgs = [
+            '-port',
+            String(pluginWSServerPort),
+            '-pluginUUID',
+            String(pluginInfo.pluginId),
+            '-registerEvent',
+            'registerPluginHandler',
+            '-info',
+            JSON.stringify(this.inInfoParam),
+        ];
 
         console.log(
             'NativePluginLoader: constructor: Plugin: ',
             pluginInfo.pluginName,
             ' Start on executable file: ',
             pluginExecutePath,
-            ' execCmd: ',
-            execCmd
+            ' args: ',
+            pluginArgs
         );
 
-        exec(`${execCmd}`, (err, stdout, stderr) => {
-            if (err) {
-                console.error('NativePluginLoader: start: exec error: ', err);
-                return;
+        const pluginProcess = spawn(pluginExecutePath, pluginArgs, {
+            cwd: pluginInfo.pluginPath,
+            shell: false,
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        this.pluginProcess = pluginProcess;
+
+        pluginProcess.stdout.on('data', data => {
+            console.log('NativePluginLoader: stdout: ', String(data));
+        });
+        pluginProcess.stderr.on('data', data => {
+            console.error('NativePluginLoader: stderr: ', String(data));
+        });
+        pluginProcess.on('error', err => {
+            console.error('NativePluginLoader: start: spawn error: ', err);
+        });
+        pluginProcess.on('exit', (code, signal) => {
+            console.log('NativePluginLoader: process exited: code: ', code, ' signal: ', signal);
+            if (this.pluginProcess === pluginProcess) {
+                this.pluginProcess = undefined;
             }
-            console.log('NativePluginLoader: start: stdout: ', stdout, ' stderr: ', stderr);
         });
     }
 
     destroy() {
-        const execName = this.executableFileName;
-        exec(`taskkill /F /im ${execName}`, (err, stdout, stderr) => {
-            if (err) {
-                console.error('NativePluginLoader: destroy: exec error: ', err);
-                return;
-            }
-            console.log('NativePluginLoader: destroy: Process has been killed forcefully!');
-        });
+        if (!this.pluginProcess || !this.pluginProcess.pid) {
+            console.log('NativePluginLoader: destroy: no running process.');
+            return;
+        }
+
+        const pid = String(this.pluginProcess.pid);
+        if (process.platform === 'win32') {
+            const killer = spawn('taskkill', ['/F', '/PID', pid], {
+                shell: false,
+                windowsHide: true,
+                stdio: 'ignore',
+            });
+            killer.on('error', err => {
+                console.error('NativePluginLoader: destroy: taskkill error: ', err);
+            });
+        } else {
+            this.pluginProcess.kill('SIGTERM');
+        }
+        this.pluginProcess = undefined;
     }
 }

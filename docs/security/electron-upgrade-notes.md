@@ -265,6 +265,15 @@ Keyboard automation uiohook-napi backend:
 - `npm run security:runtime-blockers` now fails if the adapter loses the explicit flag/status surface, drops the `uiohook-napi` backend, loses the disabled fallback, or if this decision is no longer documented here.
 - Re-enabling these flows still requires packaged-app manual smoke with Accessibility permission: device text actions, device hotkey actions, AI output paste-to-cursor, and the selected-text AI helper menu. `robotjs` must not return to the runtime dependency graph.
 
+Interim command/plugin hardening:
+
+- Hardened profile flags live in `src/main/config/SecurityProfile.js`: AI/system command execution, phone companion LAN WebSocket, and third-party plugins are disabled by default.
+- Device `cmd` actions are removed from the UI and rejected by the dispatcher for existing saved configs.
+- AI `EXECUTE_CMD` and AI-generated command configs are blocked while `ALLOW_SYSTEM_COMMANDS=false`.
+- Native plugin process launch no longer uses shell `exec(...)`; `NativePluginLoader` now starts plugin executables with `spawn(file, args, { shell:false })`, and shutdown no longer builds shell command strings.
+- Windows PowerShell helper calls that receive dynamic paths now pass those paths as PowerShell arguments instead of interpolating them into `-Command` strings.
+- `npm run security:runtime-blockers` now guards the keyboard automation backend decision, active-win executable bit, native plugin shell-free launcher, and PowerShell path argument handling.
+
 ## Local macOS Build Signing
 
 This repository is currently targeting a personal/local-only macOS build path before production signing is set up.
@@ -303,7 +312,8 @@ Task 3.4 was partially attempted after the `robotjs` isolation and repeated afte
 
 Static guard status:
 
-- `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
+- `node scripts/security/check-electron-security-baseline.mjs` still fails with `109 finding(s)`, as expected for this phase.
+- `npm run security:runtime-blockers` passes and now covers the runtime migration blockers plus the command/plugin argument-safety regressions above.
 
 Smoke validation conclusion: the install/rebuild blocker, local macOS ad-hoc packaging blocker, packaged icon/resource bug, packaged `active-win` `EACCES` bug, fresh English default locale, and Settings close behavior are cleared for this host. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, packaged keyboard automation still needs manual Accessibility smoke, and production Developer ID signing is not configured yet.
 
@@ -448,7 +458,7 @@ Official web references were checked for Electron release status and breaking ch
 
 ## Next Actions
 
-1. Choose the permanent keyboard automation strategy before shipping: replace `robotjs` with a supported backend, or keep the disabled adapter behind an explicit product flag with UI/feature handling.
+1. Run packaged keyboard automation manual smoke with Accessibility permission for the selected `uiohook-napi` backend: device text actions, device hotkey actions, AI paste-to-cursor, and selected-text AI helper.
 2. Complete Task 15 localization: full English and Russian UI coverage, Russian locale catalog, language selector support, and an automated locale/hardcoded-copy guard.
 3. Decide whether to keep the top-level `electron-builder` override long-term or replace `vue-cli-plugin-electron-builder` with a maintained packaging path.
 4. Run hardware/API dependent smoke: DECOKEE Quake HID, configured hotkey/text actions, AI/STT/TTS, plugin flows, local server/phone companion flows.

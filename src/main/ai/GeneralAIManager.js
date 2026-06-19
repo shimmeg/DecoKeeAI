@@ -43,6 +43,26 @@ const path = require('path');
 const fs = require('fs');
 const Papa = require('papaparse');
 
+function getPowerShellItemProductNameArgs(appPath) {
+    return [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'param([string]$itemPath) (Get-Item -LiteralPath $itemPath).VersionInfo.ProductName',
+        String(appPath),
+    ];
+}
+
+function getPowerShellShortcutTargetArgs(shortcutPaths) {
+    return [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'foreach ($shortcutPath in $args) { (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath).TargetPath }',
+        ...shortcutPaths.map(shortcutPath => String(shortcutPath)),
+    ];
+}
+
 // eslint-disable-next-line
 const BUILD_IN_AI_MODELS = [
     {
@@ -536,7 +556,7 @@ export default class GeneralAIManager {
 
     _getAppName(appPath) {
         return new Promise(resolve => {
-            execFileCb('powershell', ['-command', `(Get-Item '${appPath}').VersionInfo.ProductName`], (err, stdout) => {
+            execFileCb('powershell', getPowerShellItemProductNameArgs(appPath), (err, stdout) => {
                 if (err) {
                     // console.warn(`Error getting app name for ${appPath}:`, err);
                     return resolve(path.basename(appPath)); // 返回文件名作为备用
@@ -549,7 +569,7 @@ export default class GeneralAIManager {
     _batchExec(commands, batchSize = 40) {
         const batches = [];
         for (let i = 0; i < commands.length; i += batchSize) {
-            batches.push(commands.slice(i, i + batchSize).join(';'));
+            batches.push(commands.slice(i, i + batchSize));
         }
         return batches;
     }
@@ -571,23 +591,20 @@ export default class GeneralAIManager {
 
                 // console.log('CheckWindows RecentApp Total lnkFiles length: ', lnkFiles.length);
 
-                const commands = lnkFiles.map(file => {
-                    const fullPath = path.join(recentFolder, file);
-                    return `(New-Object -ComObject WScript.Shell).CreateShortcut('${fullPath}').TargetPath`;
-                });
+                const shortcutPaths = lnkFiles.map(file => path.join(recentFolder, file));
 
-                // console.log('CheckWindows RecentApp Total commands length: ', commands.length);
+                // console.log('CheckWindows RecentApp Total shortcutPaths length: ', shortcutPaths.length);
 
                 const targetPaths = [];
-                const batches = this._batchExec(commands);
+                const batches = this._batchExec(shortcutPaths);
                 // console.log('CheckWindows RecentApp Split batches: ', batches.length);
 
                 for (const batch of batches) {
                     try {
                         const batchResult = await new Promise((resolve, reject) => {
-                            execFileCb('powershell', ['-command', batch], (err, stdout) => {
+                            execFileCb('powershell', getPowerShellShortcutTargetArgs(batch), (err, stdout) => {
                                 if (err) return reject(err);
-                                resolve(stdout.trim().split('\r\n').filter(Boolean));
+                                resolve(stdout.trim().split(/\r?\n/).filter(Boolean));
                             });
                         });
                         targetPaths.push(...batchResult);

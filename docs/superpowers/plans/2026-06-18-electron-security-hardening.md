@@ -276,9 +276,11 @@ If a model returns invalid JSON, ask for repair and parse again with the same st
 - Consumes: parsed AI action objects from Task 7.
 - Produces: allow/deny/confirm decisions before OS, clipboard, URL, document, or Home Assistant actions.
 
-- [ ] **Step 1: Default-deny command execution**
+- [x] **Step 1: Default-deny command execution**
 
 `EXECUTE_CMD` must be disabled unless an explicit developer-mode setting is enabled.
+
+Completed for the hardened profile in `src/main/config/SecurityProfile.js` and `src/main/ai/AIManager.js`: `ALLOW_SYSTEM_COMMANDS=false` blocks AI `EXECUTE_CMD`, AI-generated `cmd` key configs, and system-app command launches. The device `cmd` key type was also removed from UI/prompt surfaces and rejected at dispatch time in `src/main/DeviceControl/DeviceControlManager.js`. Remaining work is a product decision for any future developer-mode re-enable path.
 
 - [ ] **Step 2: Require confirmation for sensitive actions**
 
@@ -318,6 +320,8 @@ Canonicalize each entry and ensure it stays inside the staging directory.
 
 Renderer may request update, but cannot choose arbitrary URL or save path.
 
+Interim hardened-profile status: automatic update check on startup is disabled in `src/views/MainView/MainView.vue` because the current OTA flow has no signature/hash verification. Manual update UI remains available and still requires Task 9 verification before it can be considered hardened.
+
 ## Task 10: Plugin Sandbox, Signing, And Capabilities
 
 **Files:**
@@ -349,6 +353,8 @@ Web plugins and property inspectors must run without Node integration.
 
 Native plugin execution requires signed plugin trust or explicit developer-mode approval.
 
+Interim hardened-profile status: third-party plugin loading is compile-time disabled by `ENABLE_THIRD_PARTY_PLUGINS=false`, so native plugins do not start in the default hardened build. `src/main/DeviceControl/Connections/NativePluginLoader.js` has also been changed from shell `exec(...)` to `spawn(file, args, { shell:false })` so future plugin work does not immediately reintroduce shell injection. Signed trust / developer approval remains open.
+
 - [ ] **Step 5: Authenticate plugin WebSocket clients**
 
 Per-plugin session tokens must be required for `setSettings`, `openUrl`, `setImage`, and related events.
@@ -365,9 +371,11 @@ Per-plugin session tokens must be required for `setSettings`, `openUrl`, `setIma
 - Consumes: local HTTP/WS requests.
 - Produces: localhost-only default servers and paired LAN phone companion mode.
 
-- [ ] **Step 1: Bind to `127.0.0.1` by default**
+- [x] **Step 1: Bind to `127.0.0.1` by default**
 
 All local servers must pass host explicitly to `.listen(port, '127.0.0.1')`.
+
+Completed for the hardened default profile: VIA/plugin HTTP servers bind to `127.0.0.1`, plugin HTTP serving is disabled when plugins are disabled, plugin WebSocket serving is disabled when plugins are disabled, and the phone companion WebSocket is not started when `ENABLE_PHONE_COMPANION=false`. If LAN phone companion mode is re-enabled later, it still needs the pairing/token work below.
 
 - [ ] **Step 2: Add Origin and token checks**
 
@@ -395,6 +403,14 @@ LAN bind may only be enabled after user pairing.
 - [ ] **Step 1: Replace shell `exec()` with `execFile()` or `spawn()`**
 
 No user/config/model string may pass through a shell.
+
+Partially complete for the hardened runtime profile:
+- [x] Device `cmd` action removed from UI and rejected at dispatch time.
+- [x] AI command execution and AI-generated command configs gated by `ALLOW_SYSTEM_COMMANDS=false`.
+- [x] Native plugin launch changed from shell `exec(...)` strings to `spawn()` with argument arrays; shutdown no longer builds shell command strings.
+- [x] Windows recent-app PowerShell path handling now passes dynamic paths as PowerShell arguments instead of interpolating them into `-Command` strings.
+- [x] Runtime blocker guard now enforces the native plugin and PowerShell argument-safety regressions.
+- [ ] Remaining `exec(...)` sites must be removed or converted to explicit audited exceptions before Task 12 is complete; `npm run security:baseline` is expected to remain red until then.
 
 - [ ] **Step 2: Restrict destructive file operations**
 

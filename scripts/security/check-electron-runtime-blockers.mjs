@@ -95,6 +95,28 @@ if (!uiohookBackend.includes('createUiohookKeyboardBackend')) {
   fail(`${uiohookBackendPath} must expose createUiohookKeyboardBackend()`);
 }
 
+const nativePluginLoaderPath = 'src/main/DeviceControl/Connections/NativePluginLoader.js';
+const nativePluginLoader = fs.readFileSync(path.join(rootDir, nativePluginLoaderPath), 'utf8');
+
+if (/\bexec\s*\(/.test(nativePluginLoader)) {
+  fail(`${nativePluginLoaderPath} must launch native plugins with execFile/spawn args, not shell exec()`);
+}
+
+if (!nativePluginLoader.includes('spawn(') && !nativePluginLoader.includes('execFileCb')) {
+  fail(`${nativePluginLoaderPath} must use spawn/execFile-style argument arrays for native plugin launch and shutdown`);
+}
+
+const generalAIManagerPath = 'src/main/ai/GeneralAIManager.js';
+const generalAIManager = fs.readFileSync(path.join(rootDir, generalAIManagerPath), 'utf8');
+
+if (/Get-Item\s+['"`]\$\{?appPath/.test(generalAIManager) || /CreateShortcut\(['"`]\$\{?fullPath/.test(generalAIManager)) {
+  fail(`${generalAIManagerPath} must pass Windows paths to PowerShell as arguments, not interpolate them into -Command strings`);
+}
+
+if (!generalAIManager.includes('getPowerShellItemProductNameArgs') || !generalAIManager.includes('getPowerShellShortcutTargetArgs')) {
+  fail(`${generalAIManagerPath} must build PowerShell commands through argument-safe helper functions`);
+}
+
 const upgradeNotesPath = 'docs/security/electron-upgrade-notes.md';
 const upgradeNotes = fs.readFileSync(path.join(rootDir, upgradeNotesPath), 'utf8');
 
