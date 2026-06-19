@@ -65,6 +65,43 @@ if ((activeWinMainMode & 0o111) === 0) {
   fail('modules/active-win/main is not executable; packaged active-win spawn fails with EACCES');
 }
 
+const keyboardAutomationAdapterPath = 'src/main/native/keyboardAutomation.js';
+const keyboardAutomationAdapter = fs.readFileSync(path.join(rootDir, keyboardAutomationAdapterPath), 'utf8');
+
+if (!keyboardAutomationAdapter.includes('KEYBOARD_AUTOMATION_FEATURE_FLAG')) {
+  fail(`${keyboardAutomationAdapterPath} must expose an explicit keyboard automation product flag`);
+}
+
+if (!keyboardAutomationAdapter.includes('enabled-uiohook-napi')) {
+  fail(`${keyboardAutomationAdapterPath} must expose the uiohook-napi backend state`);
+}
+
+if (!keyboardAutomationAdapter.includes('disabled-known-limitation')) {
+  fail(`${keyboardAutomationAdapterPath} must keep an explicit disabled fallback state`);
+}
+
+if (!/function\s+getStatus\s*\(/.test(keyboardAutomationAdapter)) {
+  fail(`${keyboardAutomationAdapterPath} must expose getStatus() for product/UI handling`);
+}
+
+if (!keyboardAutomationAdapter.includes("require('uiohook-napi')")) {
+  fail(`${keyboardAutomationAdapterPath} must load uiohook-napi as the active keyboard backend`);
+}
+
+const uiohookBackendPath = 'src/main/native/uiohookKeyboardBackend.js';
+const uiohookBackend = fs.readFileSync(path.join(rootDir, uiohookBackendPath), 'utf8');
+
+if (!uiohookBackend.includes('createUiohookKeyboardBackend')) {
+  fail(`${uiohookBackendPath} must expose createUiohookKeyboardBackend()`);
+}
+
+const upgradeNotesPath = 'docs/security/electron-upgrade-notes.md';
+const upgradeNotes = fs.readFileSync(path.join(rootDir, upgradeNotesPath), 'utf8');
+
+if (!upgradeNotes.includes('Keyboard automation uiohook-napi backend')) {
+  fail(`${upgradeNotesPath} must document the keyboard automation uiohook-napi backend decision`);
+}
+
 if (failures.length > 0) {
   console.error(`Electron runtime blocker guard failed with ${failures.length} finding(s):`);
   for (const failure of failures) {

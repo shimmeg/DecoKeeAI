@@ -1,4 +1,5 @@
 const path = require('path')
+const localMacIdentity = process.env.DECOKEE_MAC_IDENTITY
 
 module.exports = {
     assetsDir: 'assets',
@@ -54,6 +55,11 @@ module.exports = {
                         "tar.gz"
                     ]
                 },
+                ...(localMacIdentity ? {
+                    mac: {
+                        identity: localMacIdentity
+                    }
+                } : {}),
                 nsis: {
                     oneClick: false,
                     perMachine: true,

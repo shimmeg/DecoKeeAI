@@ -46,7 +46,7 @@ Current migration branch state:
 - `package.json` uses `@electron/rebuild@^4.0.4` and no longer depends on deprecated `electron-rebuild`.
 - `package.json` has direct `electron-builder@^26.15.3` so root scripts do not rely only on a transitive builder binary.
 - `package.json` no longer depends on `robotjs`; the stale vendored package remains in `modules/robotjs` but is not in the install/rebuild graph.
-- `src/main/native/keyboardAutomation.js` is a temporary disabled adapter for OS keyboard automation paths that previously required `robotjs`.
+- `src/main/native/keyboardAutomation.js` is the adapter for OS keyboard automation paths that previously required `robotjs`; it now loads the `uiohook-napi` backend with an explicit disabled fallback if the native module cannot load.
 
 Build/runtime coupling to Electron 23 found at baseline:
 
@@ -71,7 +71,7 @@ Native and local packages that require explicit compatibility checks:
 - `active-win` from `file:modules/active-win`, vendored package version `8.1.1`, native package using prebuild/native fallback paths
 - `sharp@^0.33.4`
 - `font-carrier` from `file:modules/font-carrier`, stale pure-JS-looking dependency tree with `xmldom@^0.1.27`
-- `robotjs` is no longer an install-time package. The previous vendored `robotjs@0.6.0` addon is `nan`-based and fails against Electron 42 / Node 24 headers, so keyboard automation is disabled until a supported replacement is selected.
+- `robotjs` is no longer an install-time package. The previous vendored `robotjs@0.6.0` addon is `nan`-based and fails against Electron 42 / Node 24 headers, so keyboard automation now uses the `uiohook-napi` adapter with a disabled fallback if the backend cannot load.
 
 Electron build tooling requiring review:
 
@@ -254,19 +254,48 @@ npm run security:runtime-blockers
 
 Result: succeeded.
 
-Native validation conclusion after isolation: the Electron 42 macOS arm64 install/rebuild blocker is resolved for the remaining dependency graph. The remaining product blocker is functional: OS keyboard automation features that depended on `robotjs` are intentionally disabled until a supported replacement is implemented and tested.
+Native validation conclusion after isolation: the Electron 42 macOS arm64 install/rebuild blocker is resolved for the remaining dependency graph. The original remaining product blocker was functional: OS keyboard automation features that depended on `robotjs` needed a supported replacement. The selected replacement is the `uiohook-napi` backend below; packaged manual smoke with macOS Accessibility permission is still pending.
+
+Keyboard automation uiohook-napi backend:
+
+- `src/main/native/keyboardAutomation.js` now attempts to load `uiohook-napi` as the keyboard automation backend and exposes `KEYBOARD_AUTOMATION_FEATURE_FLAG` with id `keyboardAutomation.backend`.
+- `src/main/native/uiohookKeyboardBackend.js` maps DecoKee key names to `UiohookKey` values, uses `uIOhook.keyTap()` for hotkeys/copy/paste, uses clipboard-plus-paste for `typeString()`, and returns robotjs-compatible JSON for selected text/file clipboard payloads.
+- If `uiohook-napi` cannot be loaded in a packaged runtime, the adapter falls back to state `disabled-known-limitation` instead of crashing the app. The intended active state is `enabled-uiohook-napi`.
+- `npm run native:keyboard-automation:test` covers key mapping, modifier mapping, copy/paste shortcuts, text paste with clipboard restore, and selected text/file clipboard payload shape.
+- `npm run security:runtime-blockers` now fails if the adapter loses the explicit flag/status surface, drops the `uiohook-napi` backend, loses the disabled fallback, or if this decision is no longer documented here.
+- Re-enabling these flows still requires packaged-app manual smoke with Accessibility permission: device text actions, device hotkey actions, AI output paste-to-cursor, and the selected-text AI helper menu. `robotjs` must not return to the runtime dependency graph.
+
+## Local macOS Build Signing
+
+This repository is currently targeting a personal/local-only macOS build path before production signing is set up.
+
+- `npm run buildapp:mac:local` sets `DECOKEE_MAC_IDENTITY=-` and builds with explicit ad-hoc signing through `vue.config.js`.
+- The default `npm run buildapp:mac` path is unchanged and remains the path to use once a valid production signing identity is available.
+- The prior packaged-app smoke proved that `electron-builder` reached its signing step and the `.app` launched locally. It did not prove strict signature validity because `codesign --verify --deep --strict` was not run at that time.
+- Fresh auto-discovered `Apple Development: anton@efimow.name (23D8W3X8Z2)` signing currently fails strict verification on this host immediately after build, before app launch. The failure is broad across the app and loose native binaries, not specific to `uiohook-napi`.
+- Explicit ad-hoc signing passes strict verification for the `.app`, the main executable, `uiohook-napi`, `active-win`, `node-hid`, and `sharp` native binaries. Packaged `require('uiohook-napi')` also succeeds.
+
+Local macOS package verification:
+
+```bash
+npm run buildapp:mac:local
+codesign --verify --deep --strict --verbose=2 dist_electron/mac-arm64/DecoKeeAI.app
+node -e "const mod=require('./dist_electron/mac-arm64/DecoKeeAI.app/Contents/Resources/app/node_modules/uiohook-napi'); console.log(typeof mod.uIOhook.keyTap)"
+```
+
+Production distribution still needs a valid `Developer ID Application` identity and notarization before release outside this machine.
 
 ## Smoke Checklist Status
 
 Task 3.4 was partially attempted after the `robotjs` isolation and repeated after the packaged UI smoke fixes.
 
-- App Startup: passed for the available macOS arm64 packaged-app path on this host. `npm run buildapp:mac` uses `electron-builder@26.15.3`, signs `dist_electron/mac-arm64/DecoKeeAI.app`, skips notarization, and completes zip/DMG packaging. The rebuilt packaged app starts with Electron `42.4.1` / Node `24.16.0`. Direct launch with `--remote-debugging-port=9223` exposed the main renderer, Settings, AI assistant, icon import, and helper targets through DevTools. Accessibility showed only the main `DecoKeeAI` window after Settings was closed.
+- App Startup: passed for the available macOS arm64 packaged-app path on this host. The rebuilt packaged app starts with Electron `42.4.1` / Node `24.16.0`. Direct launch with `--remote-debugging-port=9223` exposed the main renderer, Settings, AI assistant, icon import, and helper targets through DevTools. Accessibility showed only the main `DecoKeeAI` window after Settings was closed. Later signing investigation selected `npm run buildapp:mac:local` as the reproducible personal/local-only package path because it uses explicit ad-hoc signing and passes strict `codesign` verification.
 - Packaged resource paths: passed after adding `src/main/managers/resourcePaths.js` and `npm run security:resource-paths`. CDP smoke confirmed main-window built-in icons load from `Contents/Resources/app/icon/...` with `complete: true` and nonzero natural dimensions. Audio tone URLs also resolve under `Contents/Resources/app/tone/...`. No image paths pointed at the old invalid `Contents/MacOS/resources/app/...` location.
 - Packaged `active-win`: passed after making `modules/active-win/main` executable and extending `npm run security:runtime-blockers` to guard the mode bit. The rebuilt bundle contains `Contents/Resources/app/node_modules/active-win/main` as `-rwxr-xr-x`; the current packaged smoke log has no `EACCES` or `active-win/main` failures.
 - Locale/UI text: improved. Fresh default and fallback locale are now English in the renderer i18n setup and store initialization. CDP smoke shows the main window and Settings text in English. A Chinese AI assistant greeting still remains in a separate assistant/default prompt path and is deferred to broader i18n cleanup.
 - Settings close behavior: passed for the available automation path. `SettingWindow` now hides on normal `close`; CDP `window.close()` against the Settings target left the renderer target alive, and Accessibility reported only the main `DecoKeeAI` window afterward.
-- Device And HID: native module load smoke passed for `node-hid`; physical DECOKEE Quake connection and key press flow were not run because hardware is required. Configured text/hotkey actions are known-disabled while `keyboardAutomation` has no supported backend.
-- AI And STT/TTS: not run. Requires provider configuration/API keys. AI output-to-key-input automatic paste is known-disabled while `keyboardAutomation` has no supported backend.
+- Device And HID: native module load smoke passed for `node-hid`; physical DECOKEE Quake connection and key press flow were not run because hardware is required. Configured text/hotkey actions now have a `uiohook-napi` backend, but packaged manual smoke with Accessibility permission has not been run.
+- AI And STT/TTS: not run. Requires provider configuration/API keys. AI output-to-key-input automatic paste now has a `uiohook-napi` backend, but packaged manual smoke with Accessibility permission has not been run.
 - Plugins: not run dynamically. Electron main/renderer bundle compilation passed, and `active-win`/`uiohook-napi` native load smoke passed.
 - OTA: not run. Signed-update flow does not exist yet; covered by later OTA hardening task.
 - Local Servers And Phone Companion: not run. Requires app startup and pairing flow.
@@ -276,7 +305,7 @@ Static guard status:
 
 - `node scripts/security/check-electron-security-baseline.mjs` still fails with `135 finding(s)`, as expected for this phase.
 
-Smoke validation conclusion: the install/rebuild blocker, macOS packaging blocker, packaged icon/resource bug, packaged `active-win` `EACCES` bug, fresh English default locale, and Settings close behavior are cleared for this host. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, and keyboard automation remains disabled until a supported `robotjs` replacement is chosen.
+Smoke validation conclusion: the install/rebuild blocker, local macOS ad-hoc packaging blocker, packaged icon/resource bug, packaged `active-win` `EACCES` bug, fresh English default locale, and Settings close behavior are cleared for this host. Task 3.4 is still not fully complete because hardware, AI/API, plugin, OTA, and local server smoke checks have not been run, packaged keyboard automation still needs manual Accessibility smoke, and production Developer ID signing is not configured yet.
 
 ## Breaking Changes Relevant To This App
 
