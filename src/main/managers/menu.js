@@ -2,6 +2,7 @@ import {Menu, clipboard} from 'electron';
 import {uIOhook, UiohookKey} from 'uiohook-napi';
 import {i18nRender} from "@/plugins/i18n";
 import keyboardAutomation from '@/main/native/keyboardAutomation';
+import { handleActiveWindowLookupFailure, isActiveWindowLookupDisabled } from '@/main/native/activeWindowLookup';
 
 const activeWindow = require('active-win');
 const { nativeImage, nativeTheme, screen } = require('electron');
@@ -25,6 +26,26 @@ const AI_MENU_ITEMS = {
     DEBUG_CODE: 5,
     DISABLE_CURRENT: 6,
     DISABLE_ALL: 7,
+}
+
+function isValidActiveWindowInfo(windowInfo) {
+    return !!(
+        windowInfo &&
+        windowInfo.owner &&
+        typeof windowInfo.owner.path === 'string' &&
+        windowInfo.owner.path !== ''
+    );
+}
+
+function hasWindowBounds(windowInfo) {
+    return !!(
+        windowInfo &&
+        windowInfo.bounds &&
+        Number.isFinite(windowInfo.bounds.x) &&
+        Number.isFinite(windowInfo.bounds.y) &&
+        Number.isFinite(windowInfo.bounds.width) &&
+        Number.isFinite(windowInfo.bounds.height)
+    );
 }
 
 class MenuManager {
@@ -193,8 +214,16 @@ class MenuManager {
                     that.isDragging = true;
                     that.dragStart = {x: event.x, y: event.y};
 
-                    const activeWindowInfo = await activeWindow();
-                    if (activeWindowInfo === null || activeWindowInfo === undefined) return;
+                    if (isActiveWindowLookupDisabled()) return;
+
+                    let activeWindowInfo;
+                    try {
+                        activeWindowInfo = await activeWindow();
+                    } catch (err) {
+                        handleActiveWindowLookupFailure('MenuManager', err);
+                        return;
+                    }
+                    if (!isValidActiveWindowInfo(activeWindowInfo)) return;
 
                     if (that._isDisabledCheckingApp(activeWindowInfo.owner)) {
                         that.dragStartApplication = undefined;
@@ -282,9 +311,19 @@ class MenuManager {
                     that.isDragging = false;
                     if (that.dragStartApplication === undefined || that.dragStartApplication === null) return;
 
-                    const dragEndApplication = await activeWindow();
+                    if (isActiveWindowLookupDisabled()) return;
 
-                    if (dragEndApplication === undefined || dragEndApplication === null
+                    let dragEndApplication;
+                    try {
+                        dragEndApplication = await activeWindow();
+                    } catch (err) {
+                        handleActiveWindowLookupFailure('MenuManager', err);
+                        return;
+                    }
+
+                    if (!isValidActiveWindowInfo(dragEndApplication)
+                        || !hasWindowBounds(that.dragStartApplication)
+                        || !hasWindowBounds(dragEndApplication)
                         || that.dragStartApplication.owner.path !== dragEndApplication.owner.path
                         || that.dragStartApplication.bounds.x !== dragEndApplication.bounds.x
                         || that.dragStartApplication.bounds.y !== dragEndApplication.bounds.y
@@ -388,7 +427,8 @@ class MenuManager {
     }
 
     _isDisabledCheckingApp(ownerInfo) {
-        return this.disabledCheckingApps.findIndex(checkInfo => checkInfo.owner.path === ownerInfo.path) >= 0;
+        if (!ownerInfo || !ownerInfo.path) return false;
+        return this.disabledCheckingApps.findIndex(checkInfo => checkInfo.owner && checkInfo.owner.path === ownerInfo.path) >= 0;
     }
 
     _showAIHelperMenu() {
@@ -545,11 +585,15 @@ class MenuManager {
                 requestMsg = '检查以下代码，指出存在的问题并给出修改后的完整代码。我的代码: \n' + this.clipboardContent.data;
                 break;
             case AI_MENU_ITEMS.DISABLE_CURRENT:
+                if (isActiveWindowLookupDisabled()) return;
                 activeWindow().then(result => {
+                    if (!isValidActiveWindowInfo(result)) return;
                     that.disabledCheckingApps.push({
                         owner: result.owner
                     });
                     that.appManager.storeManager.storeSet('aiConfig.textSelection.disabledApps', that.disabledCheckingApps);
+                }).catch(err => {
+                    handleActiveWindowLookupFailure('MenuManager', err);
                 });
                 return;
             case AI_MENU_ITEMS.DISABLE_ALL:

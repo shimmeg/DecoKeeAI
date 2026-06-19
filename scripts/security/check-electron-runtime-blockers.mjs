@@ -117,6 +117,68 @@ if (!generalAIManager.includes('getPowerShellItemProductNameArgs') || !generalAI
   fail(`${generalAIManagerPath} must build PowerShell commands through argument-safe helper functions`);
 }
 
+if (!generalAIManager.includes('filter(Boolean)') || !generalAIManager.includes('finishRecentAppLookup')) {
+  fail(`${generalAIManagerPath} must filter empty macOS recent-app paths and finish per-file lookup errors without rejecting the whole smoke task`);
+}
+
+const haManagerPath = 'src/plugins/HomeAssistant/HAManager.js';
+const haManager = fs.readFileSync(path.join(rootDir, haManagerPath), 'utf8');
+
+if (!haManager.includes('_hasValidConfig') || !haManager.includes('Home Assistant is not configured')) {
+  fail(`${haManagerPath} must skip Home Assistant connector startup until a non-empty valid hassUrl and token are configured`);
+}
+
+const deviceControlManagerPath = 'src/main/DeviceControl/DeviceControlManager.js';
+const deviceControlManager = fs.readFileSync(path.join(rootDir, deviceControlManagerPath), 'utf8');
+
+if (!deviceControlManager.includes('isValidActiveWindowInfo') || !deviceControlManager.includes('isValidOpenWindowInfo')) {
+  fail(`${deviceControlManagerPath} must validate active-win results before reading owner.path or window id`);
+}
+
+const activeWindowLookupPath = 'src/main/native/activeWindowLookup.js';
+const activeWindowLookupFullPath = path.join(rootDir, activeWindowLookupPath);
+if (!fs.existsSync(activeWindowLookupFullPath)) {
+  fail(`${activeWindowLookupPath} must centralize active-win permission failure handling`);
+} else {
+  const activeWindowLookup = fs.readFileSync(activeWindowLookupFullPath, 'utf8');
+  if (!activeWindowLookup.includes('isActiveWindowLookupDisabled') || !activeWindowLookup.includes('handleActiveWindowLookupFailure')) {
+    fail(`${activeWindowLookupPath} must expose active-win disabled state and one-time failure handling`);
+  }
+  if (!activeWindowLookup.includes('Accessibility permission')) {
+    fail(`${activeWindowLookupPath} must classify macOS Accessibility permission failures explicitly`);
+  }
+}
+
+if (!deviceControlManager.includes('isActiveWindowLookupDisabled') || !deviceControlManager.includes('handleActiveWindowLookupFailure')) {
+  fail(`${deviceControlManagerPath} must disable repeated active-win polling after known permission failures`);
+}
+
+if (!deviceControlManager.includes('hasConfiguredAppMonitorProfiles')) {
+  fail(`${deviceControlManagerPath} must skip active-win polling when no app-monitor profiles are configured`);
+}
+
+const menuManagerPath = 'src/main/managers/menu.js';
+const menuManager = fs.readFileSync(path.join(rootDir, menuManagerPath), 'utf8');
+
+if (!menuManager.includes('isValidActiveWindowInfo') || !menuManager.includes('!ownerInfo || !ownerInfo.path')) {
+  fail(`${menuManagerPath} must validate active-win results before using owner.path in the AI helper menu`);
+}
+
+if (!menuManager.includes('isActiveWindowLookupDisabled') || !menuManager.includes('handleActiveWindowLookupFailure')) {
+  fail(`${menuManagerPath} must avoid repeated active-win lookups after known permission failures`);
+}
+
+const aiAssistantWindowPath = 'src/main/windows/AIAssistantWindow.js';
+const aiAssistantWindow = fs.readFileSync(path.join(rootDir, aiAssistantWindowPath), 'utf8');
+
+if (/on\(['"]closed['"],\s*\(\)\s*=>\s*{[\s\S]*?getPosition\(\)[\s\S]*?}\)/.test(aiAssistantWindow)) {
+  fail(`${aiAssistantWindowPath} must not read BrowserWindow position from the closed event after the window is destroyed`);
+}
+
+if (!aiAssistantWindow.includes('saveAssistantWindowPosition')) {
+  fail(`${aiAssistantWindowPath} must save assistant window position before close/destroy`);
+}
+
 const upgradeNotesPath = 'docs/security/electron-upgrade-notes.md';
 const upgradeNotes = fs.readFileSync(path.join(rootDir, upgradeNotesPath), 'utf8');
 

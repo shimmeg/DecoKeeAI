@@ -650,7 +650,7 @@ export default class GeneralAIManager {
             exec('mdfind "kMDItemLastUsedDate > $time.now(-7d)"', (err, stdout) => {
                 if (err) return reject(err);
 
-                const files = stdout.trim().split('\n');
+                const files = stdout.trim().split('\n').map(file => file.trim()).filter(Boolean);
                 const recentApps = new Map();
 
                 if (files.length === 0) {
@@ -659,38 +659,47 @@ export default class GeneralAIManager {
 
                 let remaining = files.length;
 
+                const finishRecentAppLookup = () => {
+                    remaining--;
+                    if (remaining === 0) {
+                        resolve(Array.from(recentApps.values()));
+                    }
+                };
+
                 files.forEach(file => {
                     execFileCb('mdls', ['-name', 'kMDItemCFBundleIdentifier', '-r', file], (err, stdout) => {
-                        if (err) return reject(err);
+                        if (err) {
+                            finishRecentAppLookup();
+                            return;
+                        }
 
                         const appIdentifier = stdout.trim();
                         if (appIdentifier) {
                             runAppleScriptCb('on run argv\n  id of app (item 1 of argv)\nend run', [appIdentifier], (err, stdout) => {
+                                if (err) {
+                                    finishRecentAppLookup();
+                                    return;
+                                }
                                 const appPath = stdout.trim();
                                 if (appPath) {
                                     runAppleScriptCb('on run argv\n  name of app id (item 1 of argv)\nend run', [appIdentifier], (err, stdout) => {
+                                        if (err) {
+                                            finishRecentAppLookup();
+                                            return;
+                                        }
                                         const appName = stdout.trim();
                                         if (appName) {
                                             recentApps.set(appIdentifier, { name: appName, path: appPath });
                                         }
 
-                                        remaining--;
-                                        if (remaining === 0) {
-                                            resolve(Array.from(recentApps.values()));
-                                        }
+                                        finishRecentAppLookup();
                                     });
                                 } else {
-                                    remaining--;
-                                    if (remaining === 0) {
-                                        resolve(Array.from(recentApps.values()));
-                                    }
+                                    finishRecentAppLookup();
                                 }
                             });
                         } else {
-                            remaining--;
-                            if (remaining === 0) {
-                                resolve(Array.from(recentApps.values()));
-                            }
+                            finishRecentAppLookup();
                         }
                     });
                 });

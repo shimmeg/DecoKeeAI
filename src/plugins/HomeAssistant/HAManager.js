@@ -60,12 +60,12 @@ export default class HAManager {
         this.HAConfigData.hassUrl = appManager.storeManager.storeGet('haConfig.hassUrl', '');
         globalThis.WebSocket = require('ws');
         this.HAConnectionState = HA_CONNECTION_STATE.DISCONNECTED;
-        this._initData();
-
+        this.allEntities = {};
+        this.allServices = {};
         this.monitorEntityCallbackMap = new Map();
         this.mutexLock = new Mutex();
-
         this.checkConnectionTask = undefined;
+        this._initData();
     }
 
     updateConfig(configInfo, force = false) {
@@ -296,6 +296,14 @@ export default class HAManager {
 
     async _initData() {
         clearInterval(this.checkConnectionTask);
+        this.checkConnectionTask = undefined;
+
+        if (!this._hasValidConfig()) {
+            this.HAConnectionState = HA_CONNECTION_STATE.DISCONNECTED;
+            this.HAConnection = undefined;
+            console.log('HAManager: Home Assistant is not configured; skipping connector startup.');
+            return;
+        }
 
         this.checkConnectionTask = setInterval(() => {
             const isHAConnected = this.checkConnection();
@@ -311,10 +319,29 @@ export default class HAManager {
         await this._getAllEntities();
     }
 
+    _hasValidConfig() {
+        const hassUrl = this.HAConfigData && this.HAConfigData.hassUrl;
+        const accessToken = this.HAConfigData && this.HAConfigData.accessToken;
+        if (typeof hassUrl !== 'string' || hassUrl.trim() === '') return false;
+        if (typeof accessToken !== 'string' || accessToken.trim() === '') return false;
+
+        try {
+            const url = new URL(hassUrl);
+            return url.protocol === 'http:' || url.protocol === 'https:';
+        } catch (err) {
+            return false;
+        }
+    }
+
     async _getHAConnector() {
         console.log('HAManager: _getHAConnector: isNull: ', (this.HAConnection === undefined), ' ConnectionState: ', (this.HAConnectionState === HA_CONNECTION_STATE.CONNECTED));
         if (this.HAConnection !== undefined && this.HAConnectionState === HA_CONNECTION_STATE.CONNECTED) {
             return this.HAConnection;
+        }
+
+        if (!this._hasValidConfig()) {
+            this.HAConnectionState = HA_CONNECTION_STATE.DISCONNECTED;
+            throw ERR_HASS_HOST_REQUIRED;
         }
 
         const auth = createLongLivedTokenAuth(this.HAConfigData.hassUrl, this.HAConfigData.accessToken);

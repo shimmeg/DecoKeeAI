@@ -47,6 +47,7 @@ import {PROTOCOL_OP_CODE, PROTOCOL_RAW_RES_TYPE} from "@/main/DeviceControl/Conn
 import {deepCopy} from "@/utils/ObjectUtil";
 import path from "path";
 import keyboardAutomation from '@/main/native/keyboardAutomation';
+import { handleActiveWindowLookupFailure, isActiveWindowLookupDisabled } from '@/main/native/activeWindowLookup';
 
 const activeWindow = require('active-win');
 const { getOpenWindowsSync, bringAppToFront } = require('active-win');
@@ -55,6 +56,29 @@ const fs = require('fs');
 const { shell } = require('electron');
 const { exec } = require('child_process');
 
+function isValidActiveWindowInfo(windowInfo) {
+    return !!(
+        windowInfo &&
+        windowInfo.owner &&
+        typeof windowInfo.owner.path === 'string' &&
+        windowInfo.owner.path !== ''
+    );
+}
+
+function isValidOpenWindowInfo(windowInfo) {
+    return !!(
+        isValidActiveWindowInfo(windowInfo) &&
+        windowInfo.id !== undefined &&
+        windowInfo.id !== null
+    );
+}
+
+function hasConfiguredAppMonitorProfiles() {
+    return !!(
+        deviceProfileAppMonitorMap &&
+        Object.keys(deviceProfileAppMonitorMap).length > 0
+    );
+}
 
 const SPECIAL_CHAR_INPUT = [
     ')',
@@ -378,9 +402,24 @@ class DeviceControlManager {
         loadAppMonitorConfigInfo();
 
         this.checkActiveWindowTask = setInterval(() => {
+            if (!hasConfiguredAppMonitorProfiles()) {
+                lastActiveApp = undefined;
+                return;
+            }
+
+            if (isActiveWindowLookupDisabled()) {
+                lastActiveApp = undefined;
+                return;
+            }
+
             activeWindow().then(result => {
+                if (!isValidActiveWindowInfo(result)) {
+                    lastActiveApp = undefined;
+                    return;
+                }
+
                 // 比较前后两次获取的应用信息是否相同
-                if (lastActiveApp !== undefined && (!result || (result.id === lastActiveApp.id && result.title === lastActiveApp.title))) {
+                if (lastActiveApp !== undefined && result.id === lastActiveApp.id && result.title === lastActiveApp.title) {
                     return;
                 }
                 lastActiveApp = result;
@@ -415,6 +454,9 @@ class DeviceControlManager {
 
                     this.sendProfileChangeRequest(monitorInfo.deviceSN, monitorInfo.resourceId);
                 }
+            }).catch(err => {
+                lastActiveApp = undefined;
+                handleActiveWindowLookupFailure('DeviceControlManager', err);
             });
         }, 3000);
 
@@ -3601,7 +3643,21 @@ async function checkAndStartMonitorAppViewTask() {
 
     deviceMonitorAppViewContext.isRunning = true;
 
-    const openedWindow = getOpenWindowsSync();
+    if (isActiveWindowLookupDisabled()) {
+        deviceMonitorAppViewContext.isRunning = false;
+        deviceMonitorAppViewContext.monitorWindowInfos = [];
+        return;
+    }
+
+    let openedWindow = [];
+    try {
+        openedWindow = getOpenWindowsSync().filter(isValidOpenWindowInfo);
+    } catch (err) {
+        handleActiveWindowLookupFailure('DeviceControlManager', err);
+        deviceMonitorAppViewContext.isRunning = false;
+        deviceMonitorAppViewContext.monitorWindowInfos = [];
+        return;
+    }
     // console.log('DeviceControlManager: Opened Windows: ', openedWindow);
 
     let requestViewDataObj = {};

@@ -11,6 +11,12 @@ class AIAssistantWindow {
 
     initBrowserPage() {
         const that = this;
+        const saveAssistantWindowPosition = () => {
+            if (!that.win || that.win.isDestroyed()) return;
+            const position = that.win.getPosition();
+            that.storeManager.storeSet('assistantChatWindowPosition', position);
+        };
+
         // Dev or not
         if (process.env.WEBPACK_DEV_SERVER_URL) {
             this.win.loadURL(process.env.WEBPACK_DEV_SERVER_URL);
@@ -19,20 +25,15 @@ class AIAssistantWindow {
             this.win.loadURL('app://./index.html');
         }
 
+        this.win.on('close', saveAssistantWindowPosition);
+
         this.win.on('closed', () => {
             console.log('AssistantWindow windows closed');
-            // 保存当前窗口的位置
-            const position = that.win.getPosition();
-            that.storeManager.set('assistantChatWindowPosition', position);
-
+            clearTimeout(that.storeNewWindowSizeTask);
             that.win = null;
         });
 
-        this.win.on('hide', () => {
-            // 保存当前窗口的位置
-            const position = that.win.getPosition();
-            that.storeManager.storeSet('assistantChatWindowPosition', position);
-        });
+        this.win.on('hide', saveAssistantWindowPosition);
 
         this.win.once('ready-to-show', () => {
             console.log('AssistantWindow: ready-to-show ID: ', that.win.webContents.id);
@@ -60,6 +61,7 @@ class AIAssistantWindow {
         this.win.on('resize', () => {
             clearTimeout(that.storeNewWindowSizeTask);
             that.storeNewWindowSizeTask = setTimeout(() => {
+                if (!that.win || that.win.isDestroyed()) return;
                 const newWindowSize = that.win.getSize();
                 that.storeManager.storeSet('aiAssistantWindowSize', newWindowSize);
             }, 500);
